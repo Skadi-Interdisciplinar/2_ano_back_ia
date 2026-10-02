@@ -1,0 +1,47 @@
+name: 2 - Build do artefato Python
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python-build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Gerar wheel e sdist em dist/
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python (3.11)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Instalar ferramenta de build
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build
+
+      - name: Buildar artefatos em dist/
+        run: python -m build --outdir dist
+
+      - name: Listar artefatos gerados
+        run: ls -lh dist
+
+      - name: Publicar pasta dist como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-dist
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
