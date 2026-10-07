@@ -35,3 +35,20 @@ def validar_acesso(usuario_id: int) -> EscopoAcesso:
     return EscopoAcesso(
         usuario_id=linha[0], nivel_acesso=nivel_acesso, cd_id=linha[2]
     )
+
+
+def get_user_id(username:str) -> int:
+    """Obtem o usuario_id do token."""
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL nao configurada.")
+    import psycopg2
+
+    with psycopg2.connect(DATABASE_URL) as conexao, conexao.cursor() as cursor:
+        cursor.execute(
+            "SELECT id FROM tb_usuario WHERE USERNAME = %s",
+            (username,),
+        )
+        linha = cursor.fetchone()
+    if linha is None:
+        raise PermissionError("Usuario autenticado nao encontrado no banco operacional.")
+    return int(linha[0])

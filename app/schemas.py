@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from datetime import datetime
 
 class ChatRequest(BaseModel):
     """Mensagem recebida pelo endpoint de chat.
@@ -26,3 +27,10 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     resposta: str
     agentes_chamados: list[str] = Field(default_factory=list)
+
+
+class errorResponse(BaseModel):
+    status_code: int
+    message: str
+    now: datetime
+

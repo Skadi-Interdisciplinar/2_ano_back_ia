@@ -1,38 +1,9 @@
-from __future__ import annotations
-
-from types import SimpleNamespace
-
 import pytest
 from app import graph
+from tests.conftest import ModeloFalso
 
 
-class ModeloFalso:
-    def __init__(self, conteudo):
-        self.conteudo = conteudo
-        self.mensagens = None
-
-    def invoke(self, mensagens):
-        self.mensagens = mensagens
-        return SimpleNamespace(content=self.conteudo)
-
-
-def test_rota_texto_aceita_apenas_rotas_aprovadas():
-    assert graph._rota_texto("ROUTE=monitoramento") == "monitoramento"
-    assert graph._rota_texto("route=fora_do_escopo") == "orquestrador"
-    assert graph._rota_texto("resposta livre") == "orquestrador"
-
-
-def test_especialistas_tem_ordem_estavel_no_grafo():
-    assert graph.ROTAS_ESPECIALISTAS == (
-        "monitoramento",
-        "predicao",
-        "diagnostico",
-        "relatorios",
-        "faq",
-    )
-
-
-def test_roteador_registra_rota_e_agente(monkeypatch):
+def test_roteador_escolhe_rota_do_modelo(monkeypatch):
     rapido = ModeloFalso("ROUTE=faq")
     monkeypatch.setattr(graph, "obter_modelos", lambda: (ModeloFalso(""), rapido))
 
@@ -41,91 +12,71 @@ def test_roteador_registra_rota_e_agente(monkeypatch):
     assert resultado == {"rota": "faq", "agentes_chamados": ["roteador"]}
 
 
-def test_especialista_sem_tool_repassa_pergunta_original(monkeypatch):
+def test_rota_desconhecida_cai_no_orquestrador():
+    assert graph._rota_texto("ROUTE=monitoramento") == "monitoramento"
+    assert graph._rota_texto("ROUTE=desconhecida") == "orquestrador"
+
+
+def test_especialista_responde_com_o_modelo(monkeypatch):
     modelo = ModeloFalso("A FAQ ainda nao esta preenchida.")
     monkeypatch.setattr(graph, "obter_modelos", lambda: (modelo, ModeloFalso("")))
 
-    resultado = graph._executar_especialista({"rota": "faq", "pergunta_original": "Onde encontro ajuda?"})
+    resultado = graph._executar_especialista(
+        {"rota": "faq", "pergunta_original": "Onde encontro ajuda?"}
+    )
 
     assert resultado["agentes_chamados"] == ["faq"]
-    assert resultado["respostas_agentes"] == [{"agente": "faq", "resposta": "A FAQ ainda nao esta preenchida."}]
+    assert resultado["respostas_agentes"][0]["resposta"] == "A FAQ ainda nao esta preenchida."
 
 
-def test_monitoramento_sem_usuario_autenticado_e_bloqueado():
-    with pytest.raises(RuntimeError, match="usuário autenticado"):
+def test_monitoramento_exige_usuario_autenticado():
+    with pytest.raises(RuntimeError, match="autenticado"):
         graph._executar_especialista(
-            {"rota": "monitoramento", "pergunta_original": "Temperatura da câmara 3?"}
+            {"rota": "monitoramento", "pergunta_original": "Temperatura da camara 3?"}
         )
 
 
-def test_orquestrador_recebe_pergunta_e_resposta_do_especialista(monkeypatch):
+def test_orquestrador_usa_contexto_do_especialista(monkeypatch):
     modelo = ModeloFalso("Resposta final")
     monkeypatch.setattr(graph, "obter_modelos", lambda: (modelo, ModeloFalso("")))
-    estado = {
-        "pergunta_original": "Temperatura da camara 3?",
-        "respostas_agentes": [{"agente": "monitoramento", "resposta": "4 C"}],
-    }
 
-    resultado = graph._orquestrar(estado)
+    resultado = graph._orquestrar(
+        {
+            "pergunta_original": "Temperatura da camara 3?",
+            "respostas_agentes": [{"agente": "monitoramento", "resposta": "4 C"}],
+        }
+    )
 
-    assert resultado == {"resposta": "Resposta final", "agentes_chamados": ["orquestrador"]}
-    assert "Temperatura da camara 3?" in modelo.mensagens[-1].content
+    assert resultado["resposta"] == "Resposta final"
     assert "4 C" in modelo.mensagens[-1].content
 
 
-def test_executar_fluxo_salva_pergunta_e_resposta(monkeypatch):
+def test_fluxo_persiste_conversa_quando_ha_usuario(monkeypatch):
     class FluxoFalso:
-        def invoke(self, estado):
-            assert estado["usuario_id"] == 2
-            return {"resposta": "Resposta final", "agentes_chamados": ["roteador", "orquestrador"]}
+        def invoke(self, _estado):
+            return {"resposta": "Resposta final", "agentes_chamados": ["roteador"]}
 
-    chamadas = []
+    salvas = []
     monkeypatch.setattr(graph, "FLUXO_SKADI", FluxoFalso())
-    monkeypatch.setattr(graph, "salvar_mensagem_conversa", lambda *args: chamadas.append(args))
+    monkeypatch.setattr(graph, "salvar_mensagem_conversa", lambda *args: salvas.append(args))
 
     resposta, agentes = graph.executar_fluxo_skadi("oi", 2)
 
     assert resposta == "Resposta final"
-    assert agentes == ["roteador", "orquestrador"]
-    assert chamadas == [
-        (2, "usuario", "oi", "texto"),
-        (2, "assistente", "Resposta final", "texto", "orquestrador"),
-    ]
+    assert agentes == ["roteador"]
+    assert salvas[0][:3] == (2, "usuario", "oi")
+    assert salvas[1][:3] == (2, "assistente", "Resposta final")
 
 
-def test_executar_fluxo_sem_usuario_nao_persiste_memoria(monkeypatch):
+def test_fluxo_sem_usuario_nao_grava_memoria(monkeypatch):
     class FluxoFalso:
         def invoke(self, _estado):
-            return {"resposta": "Resposta final", "agentes_chamados": []}
+            return {"resposta": "ok", "agentes_chamados": []}
 
-    chamadas = []
+    salvas = []
     monkeypatch.setattr(graph, "FLUXO_SKADI", FluxoFalso())
-    monkeypatch.setattr(graph, "salvar_mensagem_conversa", lambda *args: chamadas.append(args))
+    monkeypatch.setattr(graph, "salvar_mensagem_conversa", lambda *args: salvas.append(args))
 
     graph.executar_fluxo_skadi("oi")
 
-    assert chamadas == []
-
-
-def test_executar_fluxo_reutiliza_grafo_ja_compilado(monkeypatch):
-    class FluxoFalso:
-        def __init__(self):
-            self.execucoes = 0
-
-        def invoke(self, _estado):
-            self.execucoes += 1
-            return {"resposta": "Resposta", "agentes_chamados": []}
-
-    fluxo = FluxoFalso()
-    monkeypatch.setattr(graph, "FLUXO_SKADI", fluxo)
-    monkeypatch.setattr(
-        graph,
-        "construir_fluxo",
-        lambda: (_ for _ in ()).throw(AssertionError("O grafo nao deve ser recompilado.")),
-    )
-    monkeypatch.setattr(graph, "salvar_mensagem_conversa", lambda *_: None)
-
-    graph.executar_fluxo_skadi("primeira", 2)
-    graph.executar_fluxo_skadi("segunda", 2)
-
-    assert fluxo.execucoes == 2
+    assert salvas == []

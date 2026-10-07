@@ -13,7 +13,7 @@ router = APIRouter(tags=["trimmy"])
 
 
 @router.post("/chat", response_model=ChatResponse)
-def conversar(requisicao: ChatRequest) -> ChatResponse:
+async def conversar(requisicao: ChatRequest) -> ChatResponse:
     usuario = obter_usuario_autenticado(requisicao.token)
 
     resposta, agentes = executar_fluxo_skadi(

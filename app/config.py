@@ -10,11 +10,12 @@ load_dotenv(BASE_DIR / ".env")
 
 # A variavel especifica do Skadi prevalece quando o processo tambem carrega
 # chaves de outro projeto para teste de provedores de IA.
-DATABASE_URL = os.getenv("POSTGRES_URL_SEGUNDO") or os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL")
 MONGODB_URI = os.getenv("MONGODB_URI")
 REDIS_URL = os.getenv("REDIS_URL")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 
 
 def autenticacao_mock_habilitada() -> bool:
