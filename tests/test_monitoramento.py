@@ -5,7 +5,6 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
-
 from app.tools import monitoramento
 from app.tools.access import EscopoAcesso
 from tests.conftest import ConexaoFalsa, CursorFalso, modulo_psycopg2
@@ -26,7 +25,7 @@ def _banco_camara(monkeypatch, retorno):
 
 
 def test_camara_regular_e_filtrada_pelo_cd(monkeypatch):
-    cursor = _banco_camara(monkeypatch, (3, Decimal("2"), Decimal("6")))
+    cursor = _banco_camara(monkeypatch, (3, Decimal(2), Decimal(6)))
     monkeypatch.setattr(
         monitoramento,
         "validar_acesso",
@@ -36,13 +35,13 @@ def test_camara_regular_e_filtrada_pelo_cd(monkeypatch):
     escopo, termometro, minimo, maximo = monitoramento._camara_permitida(2, 3)
 
     assert escopo.nivel_acesso == "ADMIN"
-    assert (termometro, minimo, maximo) == (3, Decimal("2"), Decimal("6"))
+    assert (termometro, minimo, maximo) == (3, Decimal(2), Decimal(6))
     assert cursor.comandos[0][1] == (3, 2)
     assert "cod_cd = %s" in cursor.comandos[0][0]
 
 
 def test_super_admin_consulta_camara_sem_restringir_cd(monkeypatch):
-    cursor = _banco_camara(monkeypatch, (5, Decimal("-22"), Decimal("-16")))
+    cursor = _banco_camara(monkeypatch, (5, Decimal(-22), Decimal(-16)))
     monkeypatch.setattr(
         monitoramento,
         "validar_acesso",
@@ -91,7 +90,7 @@ def test_consulta_leitura_retorna_evento_do_termometro_autorizado(monkeypatch):
     monkeypatch.setattr(
         monitoramento,
         "_camara_permitida",
-        lambda *_: (EscopoAcesso(2, "ADMIN", 2), 3, Decimal("2"), Decimal("6")),
+        lambda *_: (EscopoAcesso(2, "ADMIN", 2), 3, Decimal(2), Decimal(6)),
     )
     stream = [
         ("1-0", {"cod_termometro": "9", "temperatura": "10"}),
@@ -114,7 +113,7 @@ def test_consulta_leitura_sem_evento_do_termometro_falha(monkeypatch):
     monkeypatch.setattr(
         monitoramento,
         "_camara_permitida",
-        lambda *_: (EscopoAcesso(2, "ADMIN", 2), 3, Decimal("2"), Decimal("6")),
+        lambda *_: (EscopoAcesso(2, "ADMIN", 2), 3, Decimal(2), Decimal(6)),
     )
     cliente = SimpleNamespace(xrevrange=lambda *args, **kwargs: [])
     monkeypatch.setattr(monitoramento, "REDIS_URL", "redis://teste")
@@ -132,7 +131,7 @@ def test_indisponibilidade_do_redis_tem_erro_estavel(monkeypatch):
     monkeypatch.setattr(
         monitoramento,
         "_camara_permitida",
-        lambda *_: (EscopoAcesso(2, "ADMIN", 2), 3, Decimal("2"), Decimal("6")),
+        lambda *_: (EscopoAcesso(2, "ADMIN", 2), 3, Decimal(2), Decimal(6)),
     )
     monkeypatch.setattr(monitoramento, "REDIS_URL", "redis://teste")
     cliente = SimpleNamespace(

@@ -21,13 +21,12 @@ def validar_acesso(usuario_id: int) -> EscopoAcesso:
         raise RuntimeError("DATABASE_URL nao configurada.")
     import psycopg2
 
-    with psycopg2.connect(DATABASE_URL) as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute(
-                "SELECT id, nivel_acesso, cod_cd FROM tb_usuario WHERE id = %s",
-                (usuario_id,),
-            )
-            linha = cursor.fetchone()
+    with psycopg2.connect(DATABASE_URL) as conexao, conexao.cursor() as cursor:
+        cursor.execute(
+            "SELECT id, nivel_acesso, cod_cd FROM tb_usuario WHERE id = %s",
+            (usuario_id,),
+        )
+        linha = cursor.fetchone()
     if linha is None:
         raise PermissionError("Usuario autenticado nao encontrado no banco operacional.")
     nivel_acesso = str(linha[1]).strip().upper()

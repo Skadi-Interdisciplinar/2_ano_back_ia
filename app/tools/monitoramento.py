@@ -42,10 +42,9 @@ def _camara_permitida(usuario_id: int, camara_id: int) -> tuple[EscopoAcesso, in
     import psycopg2
 
     try:
-        with psycopg2.connect(DATABASE_URL) as conexao:
-            with conexao.cursor() as cursor:
-                cursor.execute(consulta, parametros)
-                linha = cursor.fetchone()
+        with psycopg2.connect(DATABASE_URL) as conexao, conexao.cursor() as cursor:
+            cursor.execute(consulta, parametros)
+            linha = cursor.fetchone()
     except psycopg2.OperationalError as erro:
         raise RuntimeError("Banco de dados indisponível.") from erro
     if linha is None:

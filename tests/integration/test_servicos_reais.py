@@ -10,9 +10,7 @@ from __future__ import annotations
 import os
 
 import pytest
-
 from app.config import DATABASE_URL, GEMINI_API_KEY, GROQ_API_KEY, MONGODB_URI, REDIS_URL
-
 
 pytestmark = pytest.mark.integration
 
@@ -30,10 +28,9 @@ def test_postgresql_esta_acessivel():
         pytest.fail("DATABASE_URL nao configurada.")
     import psycopg2
 
-    with psycopg2.connect(DATABASE_URL, connect_timeout=10) as conexao:
-        with conexao.cursor() as cursor:
-            cursor.execute("SELECT 1")
-            assert cursor.fetchone() == (1,)
+    with psycopg2.connect(DATABASE_URL, connect_timeout=10) as conexao, conexao.cursor() as cursor:
+        cursor.execute("SELECT 1")
+        assert cursor.fetchone() == (1,)
 
 
 def test_redis_esta_acessivel():

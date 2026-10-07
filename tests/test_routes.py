@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from fastapi.testclient import TestClient
-
 from app.auth import AuthenticatedUser
 from app.main import app
 from app.routes import chat
+from fastapi.testclient import TestClient
 
 
 def test_chat_repassa_mensagem_e_usuario_ao_fluxo(monkeypatch):

@@ -3,7 +3,6 @@ from __future__ import annotations
 import sys
 
 import pytest
-
 from app.tools import access
 from tests.conftest import ConexaoFalsa, CursorFalso, modulo_psycopg2
 

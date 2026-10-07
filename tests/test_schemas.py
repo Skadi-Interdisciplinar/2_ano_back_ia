@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import pytest
-from pydantic import ValidationError
-
 from app.schemas import ChatRequest, ChatResponse
+from pydantic import ValidationError
 
 
 def test_chat_request_remove_espacos():

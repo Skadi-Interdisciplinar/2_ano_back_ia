@@ -70,8 +70,8 @@ def _executar_especialista(estado: EstadoSkadi) -> dict:
         if estado.get("usuario_id") is None:
             raise RuntimeError("Monitoramento exige um usuário autenticado.")
 
-        from langchain.agents import create_agent
         from app.tools.monitoramento import criar_tool_consultar_leitura_recente
+        from langchain.agents import create_agent
 
         modelo, _ = obter_modelos()
         consultar_leitura_recente = criar_tool_consultar_leitura_recente(

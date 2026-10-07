@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, Request
-
 from app.routes.chat import router as chat_router
+from fastapi import FastAPI, Request
 
 app = FastAPI(
     title="Trimmy",

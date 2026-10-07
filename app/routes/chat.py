@@ -2,13 +2,10 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
-
-from app.auth import AuthenticatedUser, obter_usuario_autenticado
+from app.auth import obter_usuario_autenticado
 from app.graph import executar_fluxo_skadi
-from app.memory import registrar_execucao_agente, salvar_mensagem_conversa
 from app.schemas import ChatRequest, ChatResponse
-from app.tools.access import validar_acesso
+from fastapi import APIRouter
 
 logger = logging.getLogger(__name__)
 

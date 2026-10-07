@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
+from datetime import UTC, datetime
 from typing import Any
 
 from app.config import MONGODB_URI
@@ -31,7 +30,7 @@ def carregar_contexto_conversa(usuario_id: int, limite: int = 20) -> list[dict[s
 
 
 def salvar_mensagem_conversa(usuario_id: int, remetente: str, conteudo: str, tipo: str, agente: str | None = None) -> None:
-    agora = datetime.now(timezone.utc)
+    agora = datetime.now(UTC)
     mensagem: dict[str, Any] = {
         "dataHora": agora,
         "remetente": remetente,
@@ -54,7 +53,7 @@ def salvar_mensagem_conversa(usuario_id: int, remetente: str, conteudo: str, tip
 def registrar_execucao_agente(agente: str, entrada: dict[str, Any], status: str, termino: datetime | None = None) -> None:
     documento: dict[str, Any] = {
         "agente": agente,
-        "inicio": datetime.now(timezone.utc),
+        "inicio": datetime.now(UTC),
         "entrada": entrada,
         "status": status,
     }
