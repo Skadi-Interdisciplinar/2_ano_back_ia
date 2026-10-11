@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.config import DATABASE_URL
+from app.tools.db import get_conn
 
 NIVEIS_ACESSO_CONHECIDOS = {"SUPER_ADMIN", "ADMIN", "GESTOR", "OPERADOR"}
 
@@ -17,11 +17,7 @@ class EscopoAcesso:
 def validar_acesso(usuario_id: int) -> EscopoAcesso:
     """Consulta somente os campos aprovados para definir o escopo do usuario."""
 
-    if not DATABASE_URL:
-        raise RuntimeError("DATABASE_URL nao configurada.")
-    import psycopg2
-
-    with psycopg2.connect(DATABASE_URL) as conexao, conexao.cursor() as cursor:
+    with get_conn() as conexao, conexao.cursor() as cursor:
         cursor.execute(
             "SELECT id, nivel_acesso, cod_cd FROM tb_usuario WHERE id = %s",
             (usuario_id,),

@@ -6,8 +6,9 @@ from types import SimpleNamespace
 
 
 class CursorFalso:
-    def __init__(self, retorno=None):
+    def __init__(self, retorno=None, retornos=None):
         self.retorno = retorno
+        self.retornos = retornos or []
         self.comandos: list[tuple[str, tuple | None]] = []
 
     def execute(self, comando, parametros=None):
@@ -15,6 +16,9 @@ class CursorFalso:
 
     def fetchone(self):
         return self.retorno
+
+    def fetchall(self):
+        return self.retornos
 
     def __enter__(self):
         return self
@@ -26,6 +30,10 @@ class CursorFalso:
 class ConexaoFalsa:
     def __init__(self, cursor):
         self.cursor_falso = cursor
+        self.fechada = False
+
+    def close(self):
+        self.fechada = True
 
     def cursor(self):
         return self.cursor_falso

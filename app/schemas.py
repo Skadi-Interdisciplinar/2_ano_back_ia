@@ -26,3 +26,12 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     resposta: str
     agentes_chamados: list[str] = Field(default_factory=list)
+
+
+class EncerrarChatRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=10_000)
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+
+class EncerrarChatResponse(BaseModel):
+    resumo: str | None = None

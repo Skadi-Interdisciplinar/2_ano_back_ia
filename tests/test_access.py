@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-import sys
-
 import pytest
 from app.tools import access
-from tests.conftest import ConexaoFalsa, CursorFalso, modulo_psycopg2
+from tests.conftest import ConexaoFalsa, CursorFalso
 
 
 def _configurar_banco_falso(monkeypatch, retorno):
     cursor = CursorFalso(retorno)
-    monkeypatch.setattr(access, "DATABASE_URL", "postgres://teste")
-    monkeypatch.setitem(sys.modules, "psycopg2", modulo_psycopg2(ConexaoFalsa(cursor)))
+    monkeypatch.setattr(access, "get_conn", lambda: ConexaoFalsa(cursor))
     return cursor
 
 
@@ -39,8 +36,3 @@ def test_validar_acesso_rejeita_nivel_desconhecido(monkeypatch):
         access.validar_acesso(2)
 
 
-def test_validar_acesso_exige_url_de_banco(monkeypatch):
-    monkeypatch.setattr(access, "DATABASE_URL", None)
-
-    with pytest.raises(RuntimeError, match="DATABASE_URL"):
-        access.validar_acesso(2)

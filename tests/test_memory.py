@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
+import pytest
 from app import memory
 
 
@@ -14,6 +17,10 @@ class ColecaoFalsa:
 
     def update_one(self, filtro, atualizacao, upsert=False):
         self.atualizacoes.append((filtro, atualizacao, upsert))
+        return SimpleNamespace(matched_count=1)
+
+    def create_index(self, *args, **kwargs):
+        pass
 
     def insert_one(self, documento):
         self.inseridos.append(documento)
@@ -22,7 +29,15 @@ class ColecaoFalsa:
 class BancoFalso:
     def __init__(self, conversas=None):
         self.conversas = conversas or ColecaoFalsa()
+        self.sessoes_trimmy = self.conversas
         self.execucoes_agentes = ColecaoFalsa()
+
+
+@pytest.fixture(autouse=True)
+def sessao_falsa(monkeypatch):
+    monkeypatch.setattr(memory, "iniciar_sessao", lambda usuario: {
+        "_id": "sessao-teste", "usuarioId": usuario, "status": "aberta", "mensagens": [],
+    })
 
 
 def test_salvar_mensagem_cria_documento_de_conversa(monkeypatch):
@@ -32,10 +47,11 @@ def test_salvar_mensagem_cria_documento_de_conversa(monkeypatch):
     memory.salvar_mensagem_conversa(2, "usuario", "oi", "texto")
 
     filtro, atualizacao, upsert = banco.conversas.atualizacoes[0]
-    assert filtro == {"usuarioId": 2}
-    assert upsert is True
+    assert filtro == {"_id": "sessao-teste", "usuarioId": 2, "status": "aberta"}
+    assert upsert is False
     assert atualizacao["$push"]["mensagens"]["conteudo"] == "oi"
     assert "agente" not in atualizacao["$push"]["mensagens"]
+    assert atualizacao["$unset"] == {"resumo": ""}
 
 
 def test_salvar_mensagem_registra_agente_quando_informado(monkeypatch):
@@ -52,6 +68,7 @@ def test_carregar_contexto_retorna_apenas_ultimas_mensagens(monkeypatch):
     mensagens = [{"conteudo": str(numero)} for numero in range(5)]
     banco = BancoFalso(ColecaoFalsa({"usuarioId": 2, "mensagens": mensagens}))
     monkeypatch.setattr(memory, "_database", lambda: banco)
+    monkeypatch.setattr(memory, "iniciar_sessao", lambda _usuario: banco.conversas.documento)
 
     contexto = memory.carregar_contexto_conversa(2, limite=2)
 

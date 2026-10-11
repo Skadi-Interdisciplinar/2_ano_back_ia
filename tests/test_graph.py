@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from app import graph
+from app.tools.contexto import obter_usuario_contexto
 
 
 class ModeloFalso:
@@ -14,6 +15,11 @@ class ModeloFalso:
     def invoke(self, mensagens):
         self.mensagens = mensagens
         return SimpleNamespace(content=self.conteudo)
+
+
+@pytest.fixture(autouse=True)
+def memoria_isolada(monkeypatch):
+    monkeypatch.setattr(graph, "carregar_contexto_conversa", lambda _usuario: [])
 
 
 def test_rota_texto_aceita_apenas_rotas_aprovadas():
@@ -129,3 +135,90 @@ def test_executar_fluxo_reutiliza_grafo_ja_compilado(monkeypatch):
     graph.executar_fluxo_skadi("segunda", 2)
 
     assert fluxo.execucoes == 2
+
+
+def test_executar_fluxo_disponibiliza_e_limpa_usuario_para_tools(monkeypatch):
+    class FluxoFalso:
+        def invoke(self, _estado):
+            assert obter_usuario_contexto() == 2
+            return {"resposta": "Resposta", "agentes_chamados": []}
+
+    monkeypatch.setattr(graph, "FLUXO_SKADI", FluxoFalso())
+    monkeypatch.setattr(graph, "salvar_mensagem_conversa", lambda *_: None)
+
+    graph.executar_fluxo_skadi("oi", 2)
+
+    with pytest.raises(RuntimeError, match="usuário autenticado"):
+        obter_usuario_contexto()
+
+
+def test_continuacao_recebe_historico_do_usuario_em_todo_o_grafo(monkeypatch):
+    from app.tools import monitoramento
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    historico = [
+        {"remetente": "usuario", "conteudo": "Qual o limite mínimo da câmara 3?"},
+        {"remetente": "assistente", "conteudo": "Posso consultar a câmara 3."},
+    ]
+    usuarios_consultados = []
+    salvas = []
+    rapido = ModeloFalso("ROUTE=monitoramento")
+    modelo = ModeloFalso("O limite mínimo cadastrado é 2 °C.")
+    monkeypatch.setattr(graph, "obter_modelos", lambda: (modelo, rapido))
+    monkeypatch.setattr(
+        graph, "carregar_contexto_conversa",
+        lambda usuario: usuarios_consultados.append(usuario) or historico,
+    )
+    monkeypatch.setattr(graph, "salvar_mensagem_conversa", lambda *args: salvas.append(args))
+    monkeypatch.setattr(
+        monitoramento, "consultar_temperaturas_permitidas",
+        lambda usuario, camara, *_: {"status": "ok", "camaras": [{"limite_minimo": "2"}]} if (usuario, camara) == (2, 3) else {},
+    )
+    mensagens_especialista = []
+
+    def criar_agente_falso(**kwargs):
+        if kwargs["model"] is rapido:
+            class RoteadorFalso:
+                def invoke(self, entrada):
+                    rapido.mensagens = [None, *entrada["messages"]]
+                    return {"messages": [AIMessage(content=rapido.conteudo)]}
+            return RoteadorFalso()
+        assert monitoramento.consultar_temperaturas in kwargs["tools"]
+        assert "limites" in kwargs["system_prompt"]
+
+        class AgenteFalso:
+            def invoke(self, entrada):
+                mensagens_especialista.extend(entrada["messages"])
+                dados = monitoramento.consultar_temperaturas.invoke({"camara_id": 3})
+                assert dados["camaras"][0]["limite_minimo"] == "2"
+                return {"messages": [AIMessage(content="Limite mínimo cadastrado: 2 °C.")]}
+
+        return AgenteFalso()
+
+    monkeypatch.setattr("langchain.agents.create_agent", criar_agente_falso)
+
+    resposta, agentes = graph.executar_fluxo_skadi("consulte", 2)
+
+    assert usuarios_consultados == [2]
+    assert agentes == ["roteador", "monitoramento", "orquestrador"]
+    assert resposta == modelo.conteudo
+    assert isinstance(rapido.mensagens[1], HumanMessage)
+    assert isinstance(rapido.mensagens[2], AIMessage)
+    assert [item.content for item in mensagens_especialista] == [
+        historico[0]["conteudo"], historico[1]["conteudo"], "consulte",
+    ]
+    assert "câmara 3" in modelo.mensagens[-1].content
+    assert salvas[0] == (2, "usuario", "consulte", "texto")
+
+
+def test_falha_ao_carregar_memoria_limpa_contexto_e_nao_chama_modelo(monkeypatch):
+    monkeypatch.setattr(
+        graph, "carregar_contexto_conversa",
+        lambda _usuario: (_ for _ in ()).throw(RuntimeError("Mongo indisponível")),
+    )
+
+    with pytest.raises(RuntimeError, match="Mongo indisponível"):
+        graph.executar_fluxo_skadi("consulte", 2)
+
+    with pytest.raises(RuntimeError, match="usuário autenticado"):
+        obter_usuario_contexto()
