@@ -1,49 +1,15 @@
-"""Fixtures e dublês compartilhados para testes sem infraestrutura externa."""
+"""Preparação simples de conexão e cursor para testes sem banco real."""
 
-from __future__ import annotations
-
-from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 
-class CursorFalso:
-    def __init__(self, retorno=None, retornos=None):
-        self.retorno = retorno
-        self.retornos = retornos or []
-        self.comandos: list[tuple[str, tuple | None]] = []
+def banco_sql(retorno=None, retornos=None):
+    cursor = MagicMock()
+    cursor.fetchone.return_value = retorno
+    cursor.fetchall.return_value = retornos or []
+    cursor.__enter__.return_value = cursor
 
-    def execute(self, comando, parametros=None):
-        self.comandos.append((comando, parametros))
-
-    def fetchone(self):
-        return self.retorno
-
-    def fetchall(self):
-        return self.retornos
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        return False
-
-
-class ConexaoFalsa:
-    def __init__(self, cursor):
-        self.cursor_falso = cursor
-        self.fechada = False
-
-    def close(self):
-        self.fechada = True
-
-    def cursor(self):
-        return self.cursor_falso
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        return False
-
-
-def modulo_psycopg2(conexao):
-    return SimpleNamespace(connect=lambda _url: conexao)
+    conexao = MagicMock()
+    conexao.cursor.return_value = cursor
+    conexao.__enter__.return_value = conexao
+    return cursor, conexao

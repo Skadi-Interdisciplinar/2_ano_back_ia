@@ -1,31 +1,25 @@
-from types import SimpleNamespace
+from unittest.mock import Mock, call
 
 import pytest
 from app.tools import monitoramento
 from app.tools.access import EscopoAcesso
 from app.tools.contexto import definir_usuario_contexto, restaurar_usuario_contexto
 from pydantic import ValidationError
-from tests.conftest import ConexaoFalsa, CursorFalso
+from tests.conftest import banco_sql
 
 
 def banco(monkeypatch, nivel="ADMIN", cd=2, camaras=None):
-    cursor = CursorFalso(retornos=camaras or [])
-    conexao = ConexaoFalsa(cursor)
-    monkeypatch.setattr(monitoramento, "get_conn", lambda: conexao)
+    cursor, conexao = banco_sql(retornos=camaras)
+    monkeypatch.setattr(monitoramento, "get_conn", Mock(return_value=conexao))
     monkeypatch.setattr(monitoramento, "validar_acesso", lambda usuario: EscopoAcesso(usuario, nivel, cd))
     return cursor, conexao
 
 
 def redis(monkeypatch, paginas):
-    chamadas = []
-    respostas = iter(paginas)
-
-    def ler(*args, **kwargs):
-        chamadas.append((args, kwargs))
-        return next(respostas)
-
-    monkeypatch.setattr(monitoramento, "_cliente_redis", lambda: SimpleNamespace(xrevrange=ler))
-    return chamadas
+    cliente = Mock()
+    cliente.xrevrange.side_effect = paginas
+    monkeypatch.setattr(monitoramento, "_cliente_redis", Mock(return_value=cliente))
+    return cliente.xrevrange
 
 
 @pytest.mark.parametrize("nivel", ["ADMIN", "GESTOR", "OPERADOR"])
@@ -41,9 +35,9 @@ def test_todas_temperaturas_consultam_so_camaras_do_cd(monkeypatch, nivel):
         "modelo": "Modelo A", "localizacao": "Setor 1", "limite_minimo": "2",
         "limite_maximo": "6", "temperatura": "4", "data_hora": "agora", "leitura_disponivel": True,
     }]}
-    assert cursor.comandos[0][1] == (2,)
-    assert "cod_cd = %s" in cursor.comandos[0][0]
-    assert conexao.fechada
+    assert cursor.execute.call_args.args[1] == (2,)
+    assert "cod_cd = %s" in cursor.execute.call_args.args[0]
+    conexao.close.assert_called_once()
     assert "SIGILOSO" not in str(resultado)
     assert not {"camara_id", "termometro", "evento_redis", "cd"} & resultado["camaras"][0].keys()
 
@@ -51,8 +45,8 @@ def test_todas_temperaturas_consultam_so_camaras_do_cd(monkeypatch, nivel):
 def test_super_admin_temperaturas_sem_filtro_cd(monkeypatch):
     cursor, _ = banco(monkeypatch, "SUPER_ADMIN", None)
     assert monitoramento.consultar_temperaturas_permitidas(1, todas=True)["camaras"] == []
-    assert cursor.comandos[0][1] == ()
-    assert "cod_cd = %s" not in cursor.comandos[0][0]
+    assert cursor.execute.call_args.args[1] == ()
+    assert "cod_cd = %s" not in cursor.execute.call_args.args[0]
 
 
 def test_sem_camaras_nao_consulta_redis(monkeypatch):
@@ -77,7 +71,7 @@ def test_varredura_busca_sensor_fora_do_primeiro_lote(monkeypatch):
     ]])
     resultado = monitoramento._ultimas_leituras_permitidas({"3"})
     assert resultado["3"]["temperatura"] == "4"
-    assert chamadas[1][1]["max"] == primeira[-1][0]
+    assert chamadas.call_args_list[1].kwargs["max"] == primeira[-1][0]
 
 
 def test_sem_eventos_na_proxima_pagina_termina(monkeypatch):
@@ -90,10 +84,9 @@ def test_sem_eventos_na_proxima_pagina_termina(monkeypatch):
 def test_falha_redis_nao_vira_resultado_vazio(monkeypatch, erro):
     import redis as redis_lib
 
-    def falhar(*args, **kwargs):
-        raise getattr(redis_lib.exceptions, erro)("falha")
-
-    monkeypatch.setattr(monitoramento, "_cliente_redis", lambda: SimpleNamespace(xrevrange=falhar))
+    cliente = Mock()
+    cliente.xrevrange.side_effect = getattr(redis_lib.exceptions, erro)("falha")
+    monkeypatch.setattr(monitoramento, "_cliente_redis", Mock(return_value=cliente))
     with pytest.raises(RuntimeError, match="Redis indisponível"):
         monitoramento._ultimas_leituras_permitidas({"3"})
 
@@ -128,12 +121,12 @@ def test_filtros_sql_parametrizados_e_intersecao(monkeypatch):
     resultado = monitoramento.consultar_temperaturas_permitidas(
         2, camara_id=3, modelo=texto, localizacao=" Setor 1 ",
     )
-    sql, parametros = cursor.comandos[0]
+    sql, parametros = cursor.execute.call_args.args
     assert parametros == (2, 3, texto, "Setor 1")
     assert texto not in sql
     assert "cod_cd = %s AND id = %s AND LOWER(modelo) = LOWER(%s) AND LOWER(localizacao) = LOWER(%s)" in sql
     assert resultado["status"] == "nao_encontrada"
-    assert conexao.fechada
+    conexao.close.assert_called_once()
 
 
 @pytest.mark.parametrize("argumentos", [
@@ -163,7 +156,7 @@ def test_nao_encontrada_ou_ambigua_nao_amplia_consulta(monkeypatch, camaras, sta
     monkeypatch.setattr(monitoramento, "_cliente_redis", lambda: pytest.fail("Não escolher câmara"))
     resultado = monitoramento.consultar_temperaturas_permitidas(2, modelo="A")
     assert resultado["status"] == status
-    assert len(cursor.comandos) == 1
+    cursor.execute.assert_called_once()
     assert "camara_id" not in str(resultado)
 
 
@@ -176,13 +169,12 @@ def test_listagem_usa_consulta_comum_sem_redis(monkeypatch):
     finally:
         restaurar_usuario_contexto(token)
     assert resultado == [{"modelo": "A", "localizacao": "Setor 1", "limite_minimo": "2", "limite_maximo": "6"}]
-    assert cursor.comandos[0][1] == (2,)
+    assert cursor.execute.call_args.args[1] == (2,)
 
 
 def test_tool_usa_usuario_interno_e_rejeita_identidade_externa(monkeypatch):
-    chamadas = []
-    monkeypatch.setattr(monitoramento, "consultar_temperaturas_permitidas",
-                        lambda *args: chamadas.append(args) or {"status": "ok", "camaras": []})
+    consultar = Mock(return_value={"status": "ok", "camaras": []})
+    monkeypatch.setattr(monitoramento, "consultar_temperaturas_permitidas", consultar)
     token = definir_usuario_contexto(2)
     try:
         monitoramento.consultar_temperaturas.invoke({"camara_id": 3})
@@ -191,7 +183,9 @@ def test_tool_usa_usuario_interno_e_rejeita_identidade_externa(monkeypatch):
             monitoramento.consultar_temperaturas.invoke({"todas": True, "usuario_id": 9})
     finally:
         restaurar_usuario_contexto(token)
-    assert chamadas == [(2, 3, None, None, False), (2, None, None, None, True)]
+    assert consultar.call_args_list == [
+        call(2, 3, None, None, False), call(2, None, None, None, True),
+    ]
     with pytest.raises(RuntimeError, match="autenticado"):
         monitoramento.consultar_temperaturas.invoke({"todas": True})
 
@@ -204,12 +198,10 @@ def test_tools_sem_aliases_redundantes():
 
 def test_falha_sql_fecha_conexao(monkeypatch):
     cursor, conexao = banco(monkeypatch)
-    def falhar(*args):
-        raise RuntimeError("Banco indisponível")
-    monkeypatch.setattr(cursor, "execute", falhar)
+    cursor.execute.side_effect = RuntimeError("Banco indisponível")
     with pytest.raises(RuntimeError, match="Banco indisponível"):
         monitoramento.consultar_temperaturas_permitidas(2, camara_id=3)
-    assert conexao.fechada
+    conexao.close.assert_called_once()
 
 
 @pytest.mark.parametrize("nivel", ["ADMIN", "GESTOR", "OPERADOR"])
@@ -218,9 +210,9 @@ def test_id_nao_encontrado_nao_remove_restricao_de_cd(monkeypatch, nivel):
     monkeypatch.setattr(monitoramento, "_cliente_redis", lambda: pytest.fail("Sem acesso à leitura"))
     resultado = monitoramento.consultar_temperaturas_permitidas(2, camara_id=99)
     assert resultado["status"] == "nao_encontrada"
-    assert cursor.comandos[0][1] == (2, 99)
-    assert "cod_cd = %s AND id = %s" in cursor.comandos[0][0]
-    assert len(cursor.comandos) == 1
+    assert cursor.execute.call_args.args[1] == (2, 99)
+    assert "cod_cd = %s AND id = %s" in cursor.execute.call_args.args[0]
+    cursor.execute.assert_called_once()
 
 
 def test_todas_inclui_camaras_sem_sensor_sem_inventar_leitura(monkeypatch):
@@ -240,24 +232,19 @@ def test_agente_invoca_tool_unificada(monkeypatch, args):
     from app import graph
     from langchain_core.messages import AIMessage
 
-    chamadas = []
-    monkeypatch.setattr(graph, "obter_modelos", lambda: (object(), object()))
-    monkeypatch.setattr(monitoramento, "consultar_temperaturas_permitidas",
-                        lambda *entrada: chamadas.append(entrada) or {"status": "ok", "camaras": []})
+    consultar = Mock(return_value={"status": "ok", "camaras": []})
+    agente = Mock()
+    monkeypatch.setattr(graph, "obter_modelos", Mock(return_value=(Mock(), Mock())))
+    monkeypatch.setattr(monitoramento, "consultar_temperaturas_permitidas", consultar)
 
-    def criar_agente(**kwargs):
-        ferramenta = next(t for t in kwargs["tools"] if t.name == "consultar_temperaturas")
-        assert "consultar_temperaturas" in kwargs["system_prompt"]
+    def executar(entrada):
+        assert entrada["messages"][-1].content == "Consulte"
+        assert monitoramento.consultar_temperaturas.invoke(args)["status"] == "ok"
+        return {"messages": [AIMessage(content="Resposta validada")]}
 
-        class Agente:
-            def invoke(self, entrada):
-                assert entrada["messages"][-1].content == "Consulte"
-                assert ferramenta.invoke(args)["status"] == "ok"
-                return {"messages": [AIMessage(content="Resposta validada")]}
-
-        return Agente()
-
-    monkeypatch.setattr("langchain.agents.create_agent", criar_agente)
+    agente.invoke.side_effect = executar
+    criar = Mock(return_value=agente)
+    monkeypatch.setattr("langchain.agents.create_agent", criar)
     token = definir_usuario_contexto(2)
     try:
         resultado = graph._executar_especialista({
@@ -265,5 +252,9 @@ def test_agente_invoca_tool_unificada(monkeypatch, args):
         })
     finally:
         restaurar_usuario_contexto(token)
-    assert chamadas == [(2, args.get("camara_id"), args.get("modelo"), None, args.get("todas", False))]
+    consultar.assert_called_once_with(
+        2, args.get("camara_id"), args.get("modelo"), None, args.get("todas", False),
+    )
+    assert monitoramento.consultar_temperaturas in criar.call_args.kwargs["tools"]
+    assert "consultar_temperaturas" in criar.call_args.kwargs["system_prompt"]
     assert resultado["respostas_agentes"] == [{"agente": "monitoramento", "resposta": "Resposta validada"}]

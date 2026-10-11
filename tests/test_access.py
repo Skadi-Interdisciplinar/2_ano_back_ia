@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+from unittest.mock import Mock
+
 import pytest
 from app.tools import access
-from tests.conftest import ConexaoFalsa, CursorFalso
+from tests.conftest import banco_sql
 
 
 def _configurar_banco_falso(monkeypatch, retorno):
-    cursor = CursorFalso(retorno)
-    monkeypatch.setattr(access, "get_conn", lambda: ConexaoFalsa(cursor))
+    cursor, conexao = banco_sql(retorno=retorno)
+    monkeypatch.setattr(access, "get_conn", Mock(return_value=conexao))
     return cursor
 
 
@@ -19,7 +21,7 @@ def test_validar_acesso_normaliza_nivel_do_banco(monkeypatch):
     assert escopo.usuario_id == 2
     assert escopo.nivel_acesso == "ADMIN"
     assert escopo.cd_id == 7
-    assert cursor.comandos[0][1] == (2,)
+    assert cursor.execute.call_args.args[1] == (2,)
 
 
 def test_validar_acesso_rejeita_usuario_inexistente(monkeypatch):
