@@ -15,15 +15,21 @@ keywords = ["langchain", "agente", "fastapi", "llm"]
 dependencies = [
   "fastapi>=0.115",
   "uvicorn[standard]>=0.32",
-  "langchain>=0.3",
-  "langchain-core>=0.3",
-  "langchain-openai>=0.2",
-  "langgraph>=0.2",
+  "langchain>=1",
+  "langchain-core>=1",
+  "langchain-google-genai>=4",
+  "langchain-groq>=1",
+  "langgraph>=1",
   "pydantic>=2",
-  "pydantic-settings>=2",
   "httpx>=0.27",
   "python-dotenv>=1.0",
   "qdrant-client",
+  "pymongo",
+  "psycopg2-binary",
+  "redis",
+  "google-genai",
+  "groq",
+  "tzdata; platform_system == 'Windows'",
 ]
 
 [project.optional-dependencies]
@@ -35,11 +41,15 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/agente_ia"]
+packages = ["app"]
 
 [tool.hatch.build.targets.sdist]
 include = [
-  "/src/agente_ia",
+  "/app",
+  "/scripts",
+  "/tests",
+  "/requirements.txt",
+  "/pytest.ini",
   "/pyproject.toml",
   "/LICENSE",
 ]
@@ -47,9 +57,4 @@ include = [
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-src = ["src", "tests"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["src"]
-asyncio_mode = "auto"
+src = ["app", "tests"]

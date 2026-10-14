@@ -1,14 +1,15 @@
-# Base técnica de diagnóstico da Trimmy - proposta para validação
+# Base técnica de diagnóstico da Trimmy - versão aprovada
 
-Versão da proposta: 0.2
+Versão da base: 0.3 (seis regras originais na versão 0.2; duas novas na versão 0.3)
 
 Data da pesquisa: 2026-10-11
 
-Status do documento e de todas as regras: **EM_REVISAO - NÃO AUTORIZADO PARA USO PELO AGENTE**.
+Status técnico: seis regras **APROVADAS** em 2026-10-11 e duas regras de degelo
+**APROVADAS** em 2026-10-12, por autorização explícita do usuário nesta conversa.
 
-Esta é a primeira entrega do plano de diagnóstico. Não modifica prompts, tools,
-permissões executáveis ou bancos. Não foi indexada no Qdrant. Os PDFs anteriores
-foram preservados; esta proposta não os substitui como base aprovada.
+Fonte executável: `app/base_regras_diagnostico.json`. A aprovação não atribui uma identidade fictícia no banco. A indexação é administrativa.
+
+O arquivo mantém seu nome original para preservar referências. A indexação e a implementação são entregas separadas; aprovação de conteúdo não comprova funcionamento em serviços reais.
 
 ## 1. Escopo e natureza da proposta
 
@@ -18,16 +19,14 @@ fundamentam possibilidades gerais; não certificam a aplicação a um equipament
 particular do Skadi. Regras, perguntas e restrições abaixo são uma adaptação
 proposta para o projeto, não transcrição de procedimentos dos fabricantes.
 
-Antes da próxima etapa, validar o conteúdo de cada regra. Reparos, ajustes e
-procedimentos específicos de equipamentos exigem avaliação técnica aplicável.
-Regras não validadas devem continuar excluídas da recuperação e da indexação.
-Aprovar o plano não equivale a aprovar automaticamente este conteúdo pesquisado.
+Reparos, ajustes e procedimentos específicos de equipamentos continuam exigindo avaliação técnica aplicável. Não acrescentar causas ou recomendações sem nova aprovação.
 
 ## 2. Condições comuns propostas
 
-- Diagnóstico permitido somente a SUPER_ADMIN, ADMIN e GESTOR. SUPER_ADMIN tem
-  escopo global; ADMIN e GESTOR consultam somente câmaras do seu CD. OPERADOR
-  permanece autorizado ao monitoramento, mas não ao diagnóstico.
+- Diagnóstico autorizado aos quatro perfis: SUPER_ADMIN global; ADMIN, GESTOR e
+  OPERADOR restritos ao próprio CD, exatamente como no monitoramento atual.
+  Alertas permanecem ativos ou reconhecidos pelo usuário; OPERADOR também respeita
+  o nível atual operador. Essa autorização substitui o bloqueio anterior de OPERADOR.
 - Identidade vem do contexto interno. Relatos, memória e regras recuperadas não
   concedem acesso. Câmara inexistente ou ambígua não amplia a consulta.
 - Usar apenas cadastro, limites, última leitura e alertas obtidos por consultas
@@ -99,12 +98,13 @@ instruções ao agente, mudança de permissão ou aprovação de regras.
 
 Em todas as regras abaixo, "relato" pode vir de justificativa vinculada ao alerta
 ou de resposta do usuário. Ambos devem permanecer identificados como relatos.
-Uma justificativa também pode ter sido registrada por OPERADOR; sua leitura por
-um perfil autorizado não concede ao operador acesso ao diagnóstico.
+Uma justificativa também pode ter sido registrada por OPERADOR. Sua leitura não
+concede acesso adicional: os quatro perfis seguem o escopo operacional autorizado.
 
 ## 4. Regras candidatas
 
-As seis regras têm versão 0.2 e status EM_REVISAO. Todas dependem das condições
+As seis regras originais têm versão 0.2 e status APROVADA; as duas regras de
+degelo têm versão 0.3 e status APROVADA. Todas dependem das condições
 comuns acima. Os identificadores abaixo são propostos para esta base; antes da
 indexação, verificar unicidade no índice técnico existente.
 
@@ -120,7 +120,7 @@ indexação, verificar unicidade no índice técnico existente.
 - **Limitações:** não inferir porta aberta apenas pela temperatura; não confirmar
   defeito, tempo de abertura ou relação causal.
 - **Fonte:** [S1], seção Air infiltration; [S2], seção How can I ensure the efficiency of my cold room?
-- **Aprovação:** pendente; responsável e data ainda não informados.
+- **Aprovação:** autorizada pelo usuário nesta conversa em 2026-10-11; sem cadastro fictício de aprovador.
 
 ### DIAG-TEC-002 - Entrada de produtos com carga térmica
 
@@ -135,7 +135,7 @@ indexação, verificar unicidade no índice técnico existente.
 - **Limitações:** não assumir temperatura do produto, sobrecarga ou insuficiência
   de capacidade; não estimar tempo de recuperação nem aceitar o desvio como normal.
 - **Fonte:** [S1], seção Product load.
-- **Aprovação:** pendente; responsável e data ainda não informados.
+- **Aprovação:** autorizada pelo usuário nesta conversa em 2026-10-11; sem cadastro fictício de aprovador.
 
 ### DIAG-TEC-003 - Obstrução da circulação de ar
 
@@ -149,7 +149,7 @@ indexação, verificar unicidade no índice técnico existente.
 - **Limitações:** não afirmar ventilador parado ou avariado; não recomendar
   inspeção interna, limpeza técnica ou movimentação automática de produtos.
 - **Fonte:** [S2], seção How can I ensure the efficiency of my cold room?
-- **Aprovação:** pendente; responsável e data ainda não informados.
+- **Aprovação:** autorizada pelo usuário nesta conversa em 2026-10-11; sem cadastro fictício de aprovador.
 
 ### DIAG-TEC-004 - Gelo visível no evaporador
 
@@ -162,7 +162,7 @@ indexação, verificar unicidade no índice técnico existente.
 - **Limitações:** não confirmar falha de degelo, resistência, refrigerante ou
   ventilador; não prescrever remoção de gelo nem alterar ciclos.
 - **Fonte:** [S3], seção Evaporator icing despite defrost running: root-cause analysis.
-- **Aprovação:** pendente; responsável e data ainda não informados.
+- **Aprovação:** autorizada pelo usuário nesta conversa em 2026-10-11; sem cadastro fictício de aprovador.
 
 ### DIAG-TEC-005 - Ventilação do condensador
 
@@ -175,7 +175,7 @@ indexação, verificar unicidade no índice técnico existente.
 - **Limitações:** não pedir acesso a componentes; não afirmar pressão elevada,
   defeito de compressor ou carga incorreta de refrigerante.
 - **Fonte:** [S2], seção How can I ensure the efficiency of my cold room?; [S4], seção How condensing removes heat from an environment.
-- **Aprovação:** pendente; responsável e data ainda não informados.
+- **Aprovação:** autorizada pelo usuário nesta conversa em 2026-10-11; sem cadastro fictício de aprovador.
 
 ### DIAG-TEC-006 - Posição do sensor
 
@@ -188,7 +188,43 @@ indexação, verificar unicidade no índice técnico existente.
 - **Limitações:** não confirmar erro de calibração; não corrigir, descartar ou
   substituir a leitura; não mandar reposicionar o sensor.
 - **Fonte:** [S3], seção Post-commissioning temperature swings: controller settings to check.
-- **Aprovação:** pendente; responsável e data ainda não informados.
+- **Aprovação:** autorizada pelo usuário nesta conversa em 2026-10-11; sem cadastro fictício de aprovador.
+
+### DIAG-TEC-007 - Degelo em andamento (versão 0.3)
+
+- Cenário: leitura acima do máximo cadastrado.
+- Evidência obrigatória: relato explícito do usuário ou justificativa de que o
+  degelo está acontecendo na mesma câmara e ocorrência.
+- Hipótese: o degelo relatado pode contribuir para a temperatura observada.
+- Recomendação: confirmar com o responsável pela operação o estado do ciclo e
+  continuar acompanhando as leituras pelos limites cadastrados.
+- Pergunta: "Há indicação ou relato de que o degelo está acontecendo nesta câmara e nesta ocorrência?"
+- Limitações: não concluir que o desvio é normal, ignorar alertas, garantir
+  recuperação ou inventar duração e temperatura aceitáveis. Não pressupor
+  equipamento ou tipo de degelo.
+- Fonte: Danfoss, User Guide AK-RC 251, descrição do degelo e interrupção do
+  resfriamento. Manual específico fundamenta uma possibilidade, não comprova
+  equipamento instalado. Consultado em 2026-10-11:
+  https://assets.danfoss.com/documents/latest/161344/BC364433930186en-000101.pdf
+- Aprovação: usuário nesta conversa, 2026-10-12.
+
+### DIAG-TEC-008 - Possível remoção insuficiente de gelo pelo degelo (versão 0.3)
+
+- Cenário: leitura acima do máximo cadastrado.
+- Evidências obrigatórias: relato de ciclo encerrado e gelo que permaneceu no
+  evaporador prejudicando a passagem de ar, vinculados ao mesmo ciclo, câmara e
+  ocorrência. Consultar a justificativa antes de solicitar esses relatos.
+- Hipótese: o relato pode indicar que o ciclo não removeu adequadamente o gelo;
+  a razão precisa de avaliação técnica.
+- Recomendação: encaminhar os relatos para avaliação técnica do degelo e evaporador.
+- Pergunta: "O ciclo de degelo desta ocorrência foi encerrado e permaneceu gelo no evaporador prejudicando a passagem de ar?"
+- Limitações: gelo sozinho não confirma falha de degelo. Não confirmar defeito
+  de resistência, controlador, sensor, compressor, refrigerante ou ventilador;
+  não recomendar ajustes, degelo manual ou remoção de gelo.
+- Fonte: [S3], Evaporator icing despite defrost running: root-cause analysis.
+- Aprovação: usuário nesta conversa, 2026-10-12.
+- Se 004 e 008 forem aplicáveis e propostas, manter a hipótese específica 008
+  na apresentação, sem contar a mesma evidência como duas conclusões independentes.
 
 ## 5. Quando não produzir hipótese
 
@@ -247,7 +283,7 @@ reprodução de manuais. Datas de publicação só são informadas quando visív
    usa modelo/localização; diagnóstico não deve correlacionar apenas por texto.
    Consultar justificativas pelo vínculo atendimento/alerta antes de fazer novas
    perguntas, sem ampliar os filtros de acesso existentes.
-4. Implementar bloqueio de OPERADOR tanto no fluxo quanto nas tools de diagnóstico.
+4. Aplicar o escopo atual aos quatro perfis, incluindo todos os filtros de alertas do OPERADOR.
 5. Criar consulta exclusiva de regras aprovadas em trimmy_regras_diagnostico,
    separada de resumos pessoais; não executar indexação a partir do agente.
 6. Validar referências e evidências na saída estruturada. Recuperação semântica
@@ -255,7 +291,7 @@ reprodução de manuais. Datas de publicação só são informadas quando visív
 7. Manter fonte e limitações na resposta do orquestrador; identificar relatos.
 8. Testar ausência de regra, ambiguidades, negação de acesso e falhas de serviços.
 
-Nenhuma dessas etapas de ativação foi executada nesta entrega documental.
+A aprovação foi concedida nesta conversa; conferir a documentação de implementação e os testes para o estado da ativação.
 
 ## 8. Alterações da versão 0.2 para aprovação final
 
@@ -263,4 +299,4 @@ Nenhuma dessas etapas de ativação foi executada nesta entrega documental.
 - Definida consulta prévia à justificativa antes de solicitar novas observações.
 - Exigido vínculo com a ocorrência; múltiplos alertas e relatos incertos pedem esclarecimento.
 - Mantidas as seis hipóteses, recomendações, fontes e restrições da versão 0.1.
-- Mantido EM_REVISAO: aguardar aprovação final antes de implementar e indexar.
+- Aprovação final recebida em 2026-10-11; implementações devem usar apenas esta versão e respeitar a política de acesso atual.

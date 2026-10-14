@@ -1,6 +1,16 @@
 from __future__ import annotations
 
+import re
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+class DecisaoRota(BaseModel):
+    """Saída interna do roteador; não representa uma autorização de acesso."""
+
+    model_config = ConfigDict(extra="forbid")
+    rota: Literal["monitoramento", "predicao", "diagnostico", "relatorios", "faq", "orquestrador"]
 
 
 class ChatRequest(BaseModel):
@@ -26,6 +36,15 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     resposta: str
     agentes_chamados: list[str] = Field(default_factory=list)
+
+    @field_validator("resposta")
+    @classmethod
+    def texto_sem_formatacao(cls, valor: str) -> str:
+        """Apresenta texto simples sem alterar números, fontes ou ressalvas."""
+        valor = re.sub(r"(?<!\w)\*\*(\S(?:[^*\n]*[^\s*])?)\*\*(?!\w)", r"\1", valor)
+        # Marcadores junto ao texto; asteriscos separados por espaços podem ser multiplicação.
+        valor = re.sub(r"(?<!\w)\*([^\W\d_](?:[^*\n]*[^\s*])?)\*(?!\w)", r"\1", valor)
+        return " ".join(valor.split())
 
 
 class EncerrarChatRequest(BaseModel):

@@ -4,18 +4,19 @@ import json
 import operator
 from typing import Annotated, TypedDict
 
-from app.llms import obter_modelos
+from app.erros import SaidaModeloInvalida
+from app.llms import criar_agente, obter_modelos
 from app.memory import carregar_contexto_conversa, salvar_mensagem_conversa
 from app.prompts import (
-    DIAGNOSTICO_PROMPT,
     FAQ_PROMPT,
     MONITORAMENTO_PROMPT,
     ORQUESTRADOR_PROMPT,
-    PREDICAO_PROMPT,
     RELATORIOS_PROMPT,
     ROTEADOR_PROMPT,
 )
+from app.schemas import DecisaoRota
 from app.tools.contexto import definir_usuario_contexto, restaurar_usuario_contexto
+from pydantic import ValidationError
 
 ROTAS_ESPECIALISTAS = (
     "monitoramento",
@@ -26,9 +27,6 @@ ROTAS_ESPECIALISTAS = (
 )
 ROTAS = frozenset((*ROTAS_ESPECIALISTAS, "orquestrador"))
 PROMPTS_POR_ROTA = {
-    "monitoramento": MONITORAMENTO_PROMPT,
-    "predicao": PREDICAO_PROMPT,
-    "diagnostico": DIAGNOSTICO_PROMPT,
     "relatorios": RELATORIOS_PROMPT,
     "faq": FAQ_PROMPT,
 }
@@ -42,15 +40,6 @@ class EstadoSkadi(TypedDict):
     resposta: str
     respostas_agentes: Annotated[list[dict[str, str]], operator.add]
     agentes_chamados: Annotated[list[str], operator.add]
-
-
-def _rota_texto(valor: str) -> str:
-    for linha in valor.splitlines():
-        if linha.strip().upper().startswith("ROUTE="):
-            rota = linha.split("=", 1)[1].strip().lower()
-            if rota in ROTAS:
-                return rota
-    return "orquestrador"
 
 
 def _mensagens_da_conversa(estado: EstadoSkadi) -> list:
@@ -69,39 +58,65 @@ def _mensagens_da_conversa(estado: EstadoSkadi) -> list:
 
 
 def _rotear(estado: EstadoSkadi) -> dict:
-    from langchain_core.messages import SystemMessage
+    from langchain.agents.structured_output import StructuredOutputError, ToolStrategy
 
     _, modelo_rapido = obter_modelos()
+    tools = []
     if estado.get("usuario_id") is not None:
         from app.tools.memoria import TOOLS_MEMORIA
-        from langchain.agents import create_agent
 
-        agente = create_agent(model=modelo_rapido, system_prompt=ROTEADOR_PROMPT, tools=TOOLS_MEMORIA)
+        tools = TOOLS_MEMORIA
+    agente = criar_agente(
+        model=modelo_rapido, system_prompt=ROTEADOR_PROMPT, tools=tools,
+        response_format=ToolStrategy(DecisaoRota, handle_errors=False),
+    )
+    try:
         saida = agente.invoke({"messages": _mensagens_da_conversa(estado)})
-        resposta = saida["messages"][-1]
-    else:
-        resposta = modelo_rapido.invoke([
-            SystemMessage(content=ROTEADOR_PROMPT),
-            *_mensagens_da_conversa(estado),
-        ])
-    return {"rota": _rota_texto(str(resposta.content)), "agentes_chamados": ["roteador"]}
+    except StructuredOutputError as erro:
+        raise SaidaModeloInvalida("Saída estruturada do roteador inválida.") from erro
+    try:
+        decisao = DecisaoRota.model_validate(saida.get("structured_response"))
+    except (ValidationError, AttributeError, TypeError) as erro:
+        # Falha de formato não significa que a pergunta esteja fora do Skadi.
+        raise SaidaModeloInvalida("Saída estruturada do roteador inválida.") from erro
+    return {"rota": decisao.rota, "agentes_chamados": ["roteador"]}
 
 
 def _executar_especialista(estado: EstadoSkadi) -> dict:
     from langchain_core.messages import SystemMessage
 
     rota = estado["rota"]
+    if rota == "predicao":
+        if estado.get("usuario_id") is None:
+            raise PermissionError("Predição exige um usuário autenticado.")
+        from app.predicao import executar_predicao
+
+        resultado = executar_predicao(_mensagens_da_conversa(estado))
+        return {
+            "respostas_agentes": [{"agente": rota, "resposta": resultado.model_dump_json()}],
+            "agentes_chamados": [rota],
+        }
+    if rota == "diagnostico":
+        if estado.get("usuario_id") is None:
+            raise PermissionError("Diagnóstico exige um usuário autenticado.")
+        from app.diagnostico import executar_diagnostico
+
+        modelo, _ = obter_modelos()
+        analise = executar_diagnostico(_mensagens_da_conversa(estado), modelo)
+        return {
+            "respostas_agentes": [{"agente": rota, "resposta": analise.model_dump_json()}],
+            "agentes_chamados": [rota],
+        }
     if rota == "monitoramento":
         if estado.get("usuario_id") is None:
             raise RuntimeError("Monitoramento exige um usuário autenticado.")
 
         from app.tools.memoria import TOOLS_MEMORIA
         from app.tools.monitoramento import TOOLS
-        from langchain.agents import create_agent
 
         modelo, _ = obter_modelos()
 
-        agente = create_agent(
+        agente = criar_agente(
             model=modelo,
             system_prompt=MONITORAMENTO_PROMPT,
             tools=TOOLS + TOOLS_MEMORIA,
@@ -115,9 +130,8 @@ def _executar_especialista(estado: EstadoSkadi) -> dict:
     modelo, _ = obter_modelos()
     if estado.get("usuario_id") is not None:
         from app.tools.memoria import TOOLS_MEMORIA
-        from langchain.agents import create_agent
 
-        agente = create_agent(model=modelo, system_prompt=PROMPTS_POR_ROTA[rota], tools=TOOLS_MEMORIA)
+        agente = criar_agente(model=modelo, system_prompt=PROMPTS_POR_ROTA[rota], tools=TOOLS_MEMORIA)
         saida = agente.invoke({"messages": _mensagens_da_conversa(estado)})
         resposta = saida["messages"][-1]
     else:
@@ -136,6 +150,23 @@ def _orquestrar(estado: EstadoSkadi) -> dict:
 
     from langchain_core.messages import HumanMessage, SystemMessage
 
+    predicoes = [r for r in estado["respostas_agentes"] if r["agente"] == "predicao"]
+    if predicoes:
+        from app.predicao import ResultadoPredicao, apresentar_predicao
+
+        resultado = ResultadoPredicao.model_validate_json(predicoes[-1]["resposta"])
+        return {"resposta": apresentar_predicao(resultado), "agentes_chamados": ["orquestrador"]}
+    diagnosticos = [
+        r for r in estado["respostas_agentes"] if r["agente"] == "diagnostico"
+    ]
+    if diagnosticos:
+        from app.diagnostico import AnaliseDiagnostico, apresentar_diagnostico
+
+        analise = AnaliseDiagnostico.model_validate_json(diagnosticos[-1]["resposta"])
+        return {
+            "resposta": apresentar_diagnostico(analise),
+            "agentes_chamados": ["orquestrador"],
+        }
     modelo, _ = obter_modelos()
     contexto = {
         "pergunta_original": estado["pergunta_original"],

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import closing
 from dataclasses import dataclass
 
 from app.tools.db import get_conn
@@ -17,7 +18,7 @@ class EscopoAcesso:
 def validar_acesso(usuario_id: int) -> EscopoAcesso:
     """Consulta somente os campos aprovados para definir o escopo do usuario."""
 
-    with get_conn() as conexao, conexao.cursor() as cursor:
+    with closing(get_conn()) as conexao, conexao.cursor() as cursor:
         cursor.execute(
             "SELECT id, nivel_acesso, cod_cd FROM tb_usuario WHERE id = %s",
             (usuario_id,),

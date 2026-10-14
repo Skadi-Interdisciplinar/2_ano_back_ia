@@ -38,3 +38,17 @@ def test_validar_acesso_rejeita_nivel_desconhecido(monkeypatch):
         access.validar_acesso(2)
 
 
+@pytest.mark.parametrize("falha", [False, True])
+def test_validacao_fecha_conexao_mesmo_com_erro(monkeypatch, falha):
+    cursor, conexao = banco_sql(retorno=(2, "ADMIN", 7))
+    monkeypatch.setattr(access, "get_conn", Mock(return_value=conexao))
+    if falha:
+        cursor.execute.side_effect = RuntimeError("Consulta indisponível")
+        with pytest.raises(RuntimeError):
+            access.validar_acesso(2)
+    else:
+        access.validar_acesso(2)
+
+    conexao.close.assert_called_once()
+
+

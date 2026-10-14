@@ -35,7 +35,7 @@ def test_cliente_redis_e_reutilizado(monkeypatch):
 def test_alertas_de_admin_sao_filtrados_pelo_cd(monkeypatch):
     cursor = _banco_camaras(
         monkeypatch,
-        [("Modelo A", "Setor 1", "urgente", "ativo", "temperatura_fora_padrao", "2026-10-07")],
+        [("Modelo A", "Setor 1", "urgente", "ativo", "temperatura_fora_padrao", "2026-10-07", 1, 3)],
     )
     monkeypatch.setattr(
         monitoramento,

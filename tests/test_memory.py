@@ -6,13 +6,15 @@ from app import memory
 
 @pytest.fixture
 def banco(monkeypatch):
+    memory._sessoes.cache_clear()
     banco = Mock()
     banco.sessoes_trimmy.update_one.return_value.matched_count = 1
     monkeypatch.setattr(memory, "_database", Mock(return_value=banco))
     monkeypatch.setattr(memory, "iniciar_sessao", Mock(return_value={
         "_id": "sessao-teste", "usuarioId": 2, "status": "aberta", "mensagens": [],
     }))
-    return banco
+    yield banco
+    memory._sessoes.cache_clear()
 
 
 def test_salvar_mensagem_cria_documento_de_conversa(banco):
@@ -46,12 +48,3 @@ def test_carregar_contexto_vazio_quando_nao_existe_conversa(monkeypatch):
     monkeypatch.setattr(memory, "iniciar_sessao", Mock(return_value=None))
 
     assert memory.carregar_contexto_conversa(2) == []
-
-
-def test_registrar_execucao_persiste_status(banco):
-    memory.registrar_execucao_agente("roteador", {"usuario_id": 2}, "concluido")
-
-    banco.execucoes_agentes.insert_one.assert_called_once()
-    documento = banco.execucoes_agentes.insert_one.call_args.args[0]
-    assert documento["agente"] == "roteador"
-    assert documento["status"] == "concluido"

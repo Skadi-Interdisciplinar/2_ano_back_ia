@@ -17,11 +17,13 @@ def sessao():
 
 @pytest.fixture
 def colecao(monkeypatch, sessao):
+    memory._sessoes.cache_clear()
     banco = Mock()
     colecao = banco.sessoes_trimmy
     colecao.find_one_and_update.return_value = sessao
     monkeypatch.setattr(memory, "_database", Mock(return_value=banco))
-    return colecao
+    yield colecao
+    memory._sessoes.cache_clear()
 
 
 def test_sessao_reutilizada_e_indice_unico_parcial(colecao, sessao):
@@ -34,6 +36,7 @@ def test_sessao_reutilizada_e_indice_unico_parcial(colecao, sessao):
     colecao.create_index.assert_called_with(
         "usuarioId", unique=True, partialFilterExpression={"ativa": True},
     )
+    colecao.create_index.assert_called_once()
 
 
 def test_encerrar_resume_indexa_e_mantem_mensagens(colecao, sessao):
@@ -171,3 +174,32 @@ def test_embedding_mantem_dimensionalidade_do_assessor(monkeypatch):
 
     assert len(vectorstore.gerar_embedding("Resumo")) == 768
     modelo.embed_query.assert_called_once_with("Resumo", output_dimensionality=768)
+
+
+def test_indice_vetorial_e_preparado_uma_vez(monkeypatch):
+    vectorstore.garantir_collection.cache_clear()
+    cliente = Mock()
+    cliente.collection_exists.return_value = True
+    monkeypatch.setattr(vectorstore, "cliente_qdrant", Mock(return_value=cliente))
+    try:
+        assert vectorstore.garantir_collection() is cliente
+        assert vectorstore.garantir_collection() is cliente
+        cliente.collection_exists.assert_called_once()
+        cliente.create_payload_index.assert_called_once()
+        cliente.create_collection.assert_not_called()
+    finally:
+        vectorstore.garantir_collection.cache_clear()
+
+
+def test_falha_preparacao_vetorial_permite_nova_tentativa(monkeypatch):
+    vectorstore.garantir_collection.cache_clear()
+    cliente = Mock()
+    cliente.collection_exists.side_effect = [RuntimeError("Indisponível"), True]
+    monkeypatch.setattr(vectorstore, "cliente_qdrant", Mock(return_value=cliente))
+    try:
+        with pytest.raises(RuntimeError):
+            vectorstore.garantir_collection()
+        assert vectorstore.garantir_collection() is cliente
+        assert cliente.collection_exists.call_count == 2
+    finally:
+        vectorstore.garantir_collection.cache_clear()

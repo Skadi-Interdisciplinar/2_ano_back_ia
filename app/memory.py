@@ -1,12 +1,14 @@
-"""Persistencia do contexto de conversa e das execucoes no MongoDB."""
+"""Persistência do contexto de conversa no MongoDB."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from functools import lru_cache
 from typing import Any
 from uuid import uuid4
 
 from app.config import MONGODB_URI
+from app.erros import ServicoIndisponivel
 
 _client: Any = None
 
@@ -14,7 +16,7 @@ _client: Any = None
 def _database():
     global _client
     if not MONGODB_URI:
-        raise RuntimeError("MONGODB_URI nao configurada.")
+        raise ServicoIndisponivel("MONGODB_URI nao configurada.")
     if _client is None:
         from pymongo import MongoClient
 
@@ -22,6 +24,7 @@ def _database():
     return _client["Skadi"]
 
 
+@lru_cache(maxsize=1)
 def _sessoes():
     colecao = _database().sessoes_trimmy
     colecao.create_index(
@@ -129,15 +132,3 @@ def encerrar_sessao(usuario_id: int) -> str | None:
     except Exception:
         colecao.update_one({"_id": documento["_id"]}, {"$set": {"status": "aberta"}})
         raise
-
-
-def registrar_execucao_agente(agente: str, entrada: dict[str, Any], status: str, termino: datetime | None = None) -> None:
-    documento: dict[str, Any] = {
-        "agente": agente,
-        "inicio": datetime.now(UTC),
-        "entrada": entrada,
-        "status": status,
-    }
-    if termino is not None:
-        documento["termino"] = termino
-    _database().execucoes_agentes.insert_one(documento)

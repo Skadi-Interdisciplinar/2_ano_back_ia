@@ -3,6 +3,7 @@
 from functools import lru_cache
 
 from app.config import GEMINI_API_KEY, QDRANT_API_KEY, QDRANT_URL
+from app.erros import ServicoIndisponivel
 
 COLLECTION_MEMORIA = "trimmy_memoria_resumos"
 EMBEDDING_DIM = 768
@@ -13,7 +14,7 @@ def cliente_qdrant():
     from qdrant_client import QdrantClient
 
     if not QDRANT_URL:
-        raise RuntimeError("QDRANT_URL não configurada.")
+        raise ServicoIndisponivel("QDRANT_URL não configurada.")
     return QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 
 
@@ -22,7 +23,7 @@ def modelo_embeddings():
     from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
     if not GEMINI_API_KEY:
-        raise RuntimeError("GEMINI_API_KEY não configurada.")
+        raise ServicoIndisponivel("GEMINI_API_KEY não configurada.")
     return GoogleGenerativeAIEmbeddings(
         model="gemini-embedding-2-preview", google_api_key=GEMINI_API_KEY,
     )
@@ -32,6 +33,7 @@ def gerar_embedding(texto: str) -> list[float]:
     return modelo_embeddings().embed_query(texto, output_dimensionality=EMBEDDING_DIM)
 
 
+@lru_cache(maxsize=1)
 def garantir_collection():
     from qdrant_client import models
 

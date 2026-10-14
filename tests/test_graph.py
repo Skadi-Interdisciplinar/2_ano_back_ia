@@ -2,9 +2,12 @@ from unittest.mock import Mock, call, patch
 
 import pytest
 from app import graph
+from app.erros import SaidaModeloInvalida
+from app.schemas import DecisaoRota
 from app.tools import monitoramento
 from app.tools.contexto import obter_usuario_contexto
 from langchain_core.messages import AIMessage, HumanMessage
+from pydantic import ValidationError
 
 
 @pytest.fixture(autouse=True)
@@ -31,10 +34,19 @@ def fluxo(monkeypatch):
     return fluxo
 
 
-def test_rota_texto_aceita_apenas_rotas_aprovadas():
-    assert graph._rota_texto("ROUTE=monitoramento") == "monitoramento"
-    assert graph._rota_texto("route=fora_do_escopo") == "orquestrador"
-    assert graph._rota_texto("resposta livre") == "orquestrador"
+@pytest.mark.parametrize("rota", sorted(graph.ROTAS))
+def test_schema_aceita_rotas_permitidas(rota):
+    assert DecisaoRota(rota=rota).rota == rota
+
+
+@pytest.mark.parametrize("dados", [
+    {"rota": "fora_do_escopo"}, {"rota": "diagnóstico"}, {"rota": ""},
+    {"rota": "diagnostico", "usuario_id": 9},
+    {"rota": "diagnostico", "nivel_acesso": "SUPER_ADMIN"},
+])
+def test_schema_rejeita_rotas_invalidas_e_campos_de_permissao(dados):
+    with pytest.raises(ValidationError):
+        DecisaoRota.model_validate(dados)
 
 
 def test_especialistas_tem_ordem_estavel_no_grafo():
@@ -44,11 +56,68 @@ def test_especialistas_tem_ordem_estavel_no_grafo():
 
 
 def test_roteador_registra_rota_e_agente(modelo):
-    modelo.invoke.return_value = AIMessage(content="ROUTE=faq")
+    agente = Mock()
+    agente.invoke.return_value = {"structured_response": {"rota": "faq"}}
 
-    resultado = graph._rotear({"pergunta_original": "Como funciona?"})
+    with patch("langchain.agents.create_agent", return_value=agente) as criar:
+        resultado = graph._rotear({"pergunta_original": "Como funciona?"})
 
     assert resultado == {"rota": "faq", "agentes_chamados": ["roteador"]}
+    estrategia = criar.call_args.kwargs["response_format"]
+    assert estrategia.schema is DecisaoRota
+    assert estrategia.handle_errors is False
+    assert criar.call_args.kwargs["tools"] == []
+
+
+@pytest.mark.parametrize("saida", [
+    {}, {"messages": [AIMessage(content="ROUTE=diagnostico")]},
+    {"structured_response": {"rota": "fora_do_escopo"}},
+    {"structured_response": "resposta livre"},
+    {"structured_response": {"rota": "diagnostico", "usuario_id": 9}},
+])
+def test_saida_invalida_nao_vira_fora_do_escopo(modelo, saida):
+    agente = Mock()
+    agente.invoke.return_value = saida
+
+    with (
+        patch("langchain.agents.create_agent", return_value=agente),
+        pytest.raises(SaidaModeloInvalida),
+    ):
+        graph._rotear({"pergunta_original": "gostaria de saber a causa dos problemas na camara 3?"})
+
+
+def test_falha_de_saida_estruturada_do_sdk_nao_vira_fora_do_escopo(modelo):
+    from langchain.agents.structured_output import StructuredOutputError
+
+    agente = Mock()
+    agente.invoke.side_effect = StructuredOutputError("Saída interna inválida")
+
+    with (
+        patch("langchain.agents.create_agent", return_value=agente),
+        pytest.raises(SaidaModeloInvalida),
+    ):
+        graph._rotear({"pergunta_original": "Qual a causa do problema na câmara 3?"})
+
+
+def test_pergunta_de_causa_chega_ao_diagnostico(monkeypatch, modelo):
+    from app.diagnostico import AnaliseDiagnostico
+    from app.tools.memoria import TOOLS_MEMORIA
+
+    pergunta = "gostaria de saber a causa dos problemas na camara 3?"
+    roteador = Mock()
+    roteador.invoke.return_value = {"structured_response": DecisaoRota(rota="diagnostico")}
+    diagnosticar = Mock(return_value=AnaliseDiagnostico(perguntas=["Há observações sobre essa ocorrência?"]))
+    monkeypatch.setattr("app.diagnostico.executar_diagnostico", diagnosticar)
+
+    with patch("langchain.agents.create_agent", return_value=roteador) as criar:
+        resposta, agentes = graph.executar_fluxo_skadi(pergunta, 2)
+
+    assert agentes == ["roteador", "diagnostico", "orquestrador"]
+    assert "atua somente" not in resposta
+    assert diagnosticar.call_args.args[0][-1].content == pergunta
+    assert criar.call_args.kwargs["tools"] == TOOLS_MEMORIA
+    assert pergunta in criar.call_args.kwargs["system_prompt"]
+    modelo.invoke.assert_not_called()
 
 
 def test_especialista_sem_tool_repassa_pergunta_original(modelo):
@@ -132,7 +201,7 @@ def test_continuacao_recebe_historico_do_usuario_em_todo_o_grafo(monkeypatch, mo
     ]
     graph.carregar_contexto_conversa.return_value = historico
     roteador = Mock()
-    roteador.invoke.return_value = {"messages": [AIMessage(content="ROUTE=monitoramento")]}
+    roteador.invoke.return_value = {"structured_response": {"rota": "monitoramento"}}
     especialista = Mock()
     consultar = Mock(return_value={"status": "ok", "camaras": [{"limite_minimo": "2"}]})
     monkeypatch.setattr(monitoramento, "consultar_temperaturas_permitidas", consultar)
