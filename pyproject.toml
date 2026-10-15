@@ -29,7 +29,6 @@ dependencies = [
   "redis",
   "google-genai",
   "groq",
-  "tzdata; platform_system == 'Windows'",
 ]
 
 [project.optional-dependencies]

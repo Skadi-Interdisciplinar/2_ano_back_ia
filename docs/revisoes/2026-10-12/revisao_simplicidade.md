@@ -56,7 +56,7 @@ Nenhuma prova acessou bancos ou chamou um LLM.
 
 validar_acesso, contexto e helpers SQL não são tools registradas do LLM.
 O orquestrador não tem tools. O roteador usa somente memória e seu schema de saída.
-Predição, relatórios e FAQ têm prompts/rotas, mas não tools específicas implementadas;
+Relatórios e FAQ têm prompts/rotas, mas não tools específicas implementadas;
 não devem ser apresentados como funcionalidades completas.
 
 ## Correspondência com o Assessor

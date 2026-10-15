@@ -32,6 +32,19 @@ def test_cliente_redis_e_reutilizado(monkeypatch):
     criar.assert_called_once_with("redis://teste", decode_responses=True)
 
 
+def test_monitoramento_preserva_aviso_de_leitura_simulada(monkeypatch):
+    camara = {"modelo": "A", "localizacao": "B", "termometro": 3,
+              "limite_minimo": "2", "limite_maximo": "6"}
+    monkeypatch.setattr(monitoramento, "consultar_camaras_permitidas", Mock(return_value=[camara]))
+    monkeypatch.setattr(monitoramento, "_ultimas_leituras_permitidas", Mock(return_value={
+        "3": {"temperatura": "4", "data_hora": "2026-10-14T09:04:00-03:00", "origem": "SIMULADO"},
+    }))
+
+    resposta = monitoramento.consultar_temperaturas_permitidas(2, camara_id=3)
+
+    assert resposta["camaras"][0]["origem_leitura"] == "SIMULADO"
+
+
 def test_alertas_de_admin_sao_filtrados_pelo_cd(monkeypatch):
     cursor = _banco_camaras(
         monkeypatch,

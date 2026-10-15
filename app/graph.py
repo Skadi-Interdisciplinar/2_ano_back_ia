@@ -20,7 +20,6 @@ from pydantic import ValidationError
 
 ROTAS_ESPECIALISTAS = (
     "monitoramento",
-    "predicao",
     "diagnostico",
     "relatorios",
     "faq",
@@ -86,16 +85,6 @@ def _executar_especialista(estado: EstadoSkadi) -> dict:
     from langchain_core.messages import SystemMessage
 
     rota = estado["rota"]
-    if rota == "predicao":
-        if estado.get("usuario_id") is None:
-            raise PermissionError("Predição exige um usuário autenticado.")
-        from app.predicao import executar_predicao
-
-        resultado = executar_predicao(_mensagens_da_conversa(estado))
-        return {
-            "respostas_agentes": [{"agente": rota, "resposta": resultado.model_dump_json()}],
-            "agentes_chamados": [rota],
-        }
     if rota == "diagnostico":
         if estado.get("usuario_id") is None:
             raise PermissionError("Diagnóstico exige um usuário autenticado.")
@@ -150,12 +139,6 @@ def _orquestrar(estado: EstadoSkadi) -> dict:
 
     from langchain_core.messages import HumanMessage, SystemMessage
 
-    predicoes = [r for r in estado["respostas_agentes"] if r["agente"] == "predicao"]
-    if predicoes:
-        from app.predicao import ResultadoPredicao, apresentar_predicao
-
-        resultado = ResultadoPredicao.model_validate_json(predicoes[-1]["resposta"])
-        return {"resposta": apresentar_predicao(resultado), "agentes_chamados": ["orquestrador"]}
     diagnosticos = [
         r for r in estado["respostas_agentes"] if r["agente"] == "diagnostico"
     ]

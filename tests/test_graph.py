@@ -41,6 +41,7 @@ def test_schema_aceita_rotas_permitidas(rota):
 
 @pytest.mark.parametrize("dados", [
     {"rota": "fora_do_escopo"}, {"rota": "diagnóstico"}, {"rota": ""},
+    {"rota": "predicao"},
     {"rota": "diagnostico", "usuario_id": 9},
     {"rota": "diagnostico", "nivel_acesso": "SUPER_ADMIN"},
 ])
@@ -51,8 +52,23 @@ def test_schema_rejeita_rotas_invalidas_e_campos_de_permissao(dados):
 
 def test_especialistas_tem_ordem_estavel_no_grafo():
     assert graph.ROTAS_ESPECIALISTAS == (
-        "monitoramento", "predicao", "diagnostico", "relatorios", "faq",
+        "monitoramento", "diagnostico", "relatorios", "faq",
     )
+
+
+def test_pedido_de_temperatura_futura_vai_direto_ao_orquestrador(modelo):
+    roteador = Mock()
+    roteador.invoke.return_value = {"structured_response": {"rota": "orquestrador"}}
+    modelo.invoke.return_value = AIMessage(content="Esse recurso não está disponível.")
+
+    with patch("langchain.agents.create_agent", return_value=roteador) as criar:
+        resposta, agentes = graph.executar_fluxo_skadi("Estime a temperatura daqui a uma semana.")
+
+    assert resposta == "Esse recurso não está disponível."
+    assert agentes == ["roteador", "orquestrador"]
+    assert criar.call_count == 1
+    assert "não oferece previsões" in criar.call_args.kwargs["system_prompt"]
+    assert "Não calcule estimativas" in modelo.invoke.call_args.args[0][0].content
 
 
 def test_roteador_registra_rota_e_agente(modelo):

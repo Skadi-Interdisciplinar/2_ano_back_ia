@@ -10,7 +10,7 @@ class DecisaoRota(BaseModel):
     """Saída interna do roteador; não representa uma autorização de acesso."""
 
     model_config = ConfigDict(extra="forbid")
-    rota: Literal["monitoramento", "predicao", "diagnostico", "relatorios", "faq", "orquestrador"]
+    rota: Literal["monitoramento", "diagnostico", "relatorios", "faq", "orquestrador"]
 
 
 class ChatRequest(BaseModel):

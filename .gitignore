@@ -34,8 +34,6 @@ secrets.toml
 
 .pytest_cache/
 .coverage
-modelos_predicao/
-simulacoes_predicao/
 
 .vscode/
 !.vscode/settings.json
