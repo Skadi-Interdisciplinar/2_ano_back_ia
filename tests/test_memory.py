@@ -1,76 +1,57 @@
-from __future__ import annotations
+from unittest.mock import Mock
 
+import pytest
 from app import memory
 
 
-class ColecaoFalsa:
-    def __init__(self, documento=None):
-        self.documento = documento
-        self.atualizacoes = []
-        self.inseridos = []
-
-    def find_one(self, _filtro):
-        return self.documento
-
-    def update_one(self, filtro, atualizacao, upsert=False):
-        self.atualizacoes.append((filtro, atualizacao, upsert))
-
-    def insert_one(self, documento):
-        self.inseridos.append(documento)
+@pytest.fixture
+def banco(monkeypatch):
+    banco = Mock()
+    banco.sessoes_trimmy.update_one.return_value.matched_count = 1
+    monkeypatch.setattr(memory, "_database", Mock(return_value=banco))
+    monkeypatch.setattr(memory, "iniciar_sessao", Mock(return_value={
+        "_id": "sessao-teste", "usuarioId": 2, "status": "aberta", "mensagens": [],
+    }))
+    return banco
 
 
-class BancoFalso:
-    def __init__(self, conversas=None):
-        self.conversas = conversas or ColecaoFalsa()
-        self.execucoes_agentes = ColecaoFalsa()
-
-
-def test_salvar_mensagem_cria_documento_de_conversa(monkeypatch):
-    banco = BancoFalso()
-    monkeypatch.setattr(memory, "_database", lambda: banco)
-
+def test_salvar_mensagem_cria_documento_de_conversa(banco):
     memory.salvar_mensagem_conversa(2, "usuario", "oi", "texto")
 
-    filtro, atualizacao, upsert = banco.conversas.atualizacoes[0]
-    assert filtro == {"usuarioId": 2}
-    assert upsert is True
+    filtro, atualizacao = banco.sessoes_trimmy.update_one.call_args.args
+    assert filtro == {"_id": "sessao-teste", "usuarioId": 2, "status": "aberta"}
     assert atualizacao["$push"]["mensagens"]["conteudo"] == "oi"
     assert "agente" not in atualizacao["$push"]["mensagens"]
+    assert atualizacao["$unset"] == {"resumo": ""}
+    banco.sessoes_trimmy.update_one.assert_called_once()
 
 
-def test_salvar_mensagem_registra_agente_quando_informado(monkeypatch):
-    banco = BancoFalso()
-    monkeypatch.setattr(memory, "_database", lambda: banco)
-
+def test_salvar_mensagem_registra_agente_quando_informado(banco):
     memory.salvar_mensagem_conversa(2, "assistente", "resposta", "texto", "orquestrador")
 
-    mensagem = banco.conversas.atualizacoes[0][1]["$push"]["mensagens"]
-    assert mensagem["agente"] == "orquestrador"
+    atualizacao = banco.sessoes_trimmy.update_one.call_args.args[1]
+    assert atualizacao["$push"]["mensagens"]["agente"] == "orquestrador"
 
 
 def test_carregar_contexto_retorna_apenas_ultimas_mensagens(monkeypatch):
     mensagens = [{"conteudo": str(numero)} for numero in range(5)]
-    banco = BancoFalso(ColecaoFalsa({"usuarioId": 2, "mensagens": mensagens}))
-    monkeypatch.setattr(memory, "_database", lambda: banco)
+    sessao = Mock(return_value={"usuarioId": 2, "mensagens": mensagens})
+    monkeypatch.setattr(memory, "iniciar_sessao", sessao)
 
-    contexto = memory.carregar_contexto_conversa(2, limite=2)
-
-    assert contexto == mensagens[-2:]
+    assert memory.carregar_contexto_conversa(2, limite=2) == mensagens[-2:]
+    sessao.assert_called_once_with(2)
 
 
 def test_carregar_contexto_vazio_quando_nao_existe_conversa(monkeypatch):
-    banco = BancoFalso(ColecaoFalsa(None))
-    monkeypatch.setattr(memory, "_database", lambda: banco)
+    monkeypatch.setattr(memory, "iniciar_sessao", Mock(return_value=None))
 
     assert memory.carregar_contexto_conversa(2) == []
 
 
-def test_registrar_execucao_persiste_status(monkeypatch):
-    banco = BancoFalso()
-    monkeypatch.setattr(memory, "_database", lambda: banco)
-
+def test_registrar_execucao_persiste_status(banco):
     memory.registrar_execucao_agente("roteador", {"usuario_id": 2}, "concluido")
 
-    documento = banco.execucoes_agentes.inseridos[0]
+    banco.execucoes_agentes.insert_one.assert_called_once()
+    documento = banco.execucoes_agentes.insert_one.call_args.args[0]
     assert documento["agente"] == "roteador"
     assert documento["status"] == "concluido"

@@ -12,18 +12,18 @@ import os
 import pytest
 from app.config import DATABASE_URL, GEMINI_API_KEY, GROQ_API_KEY, MONGODB_URI, REDIS_URL
 
-pytestmark = pytest.mark.integration
-
-
-def _requer_execucao_real() -> None:
-    if os.getenv("SKADI_RUN_INTEGRATION_TESTS", "").strip().lower() != "true":
-        pytest.skip("Defina SKADI_RUN_INTEGRATION_TESTS=true para executar integrações reais.")
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        os.getenv("SKADI_RUN_INTEGRATION_TESTS", "").strip().lower() != "true",
+        reason="Defina SKADI_RUN_INTEGRATION_TESTS=true para executar integrações reais.",
+    ),
+]
 
 
 def test_postgresql_esta_acessivel():
     """Executa apenas SELECT 1 no banco operacional."""
 
-    _requer_execucao_real()
     if not DATABASE_URL:
         pytest.fail("DATABASE_URL nao configurada.")
     import psycopg2
@@ -36,7 +36,6 @@ def test_postgresql_esta_acessivel():
 def test_redis_esta_acessivel():
     """Executa somente PING no Redis."""
 
-    _requer_execucao_real()
     if not REDIS_URL:
         pytest.fail("REDIS_URL nao configurada.")
     import redis
@@ -48,7 +47,6 @@ def test_redis_esta_acessivel():
 def test_mongodb_esta_acessivel():
     """Executa somente o comando administrativo ping no MongoDB."""
 
-    _requer_execucao_real()
     if not MONGODB_URI:
         pytest.fail("MONGODB_URI nao configurada.")
     from pymongo import MongoClient
@@ -61,7 +59,6 @@ def test_mongodb_esta_acessivel():
 def test_modelo_esta_acessivel():
     """Faz uma chamada curta ao modelo configurado, sem acessar dados do Skadi."""
 
-    _requer_execucao_real()
     if not GEMINI_API_KEY or not GROQ_API_KEY:
         pytest.fail("GEMINI_API_KEY e GROQ_API_KEY precisam estar configuradas.")
     from app.llms import obter_modelos

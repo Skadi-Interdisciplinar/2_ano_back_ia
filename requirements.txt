@@ -10,3 +10,4 @@ langchain-google-genai
 langchain-groq
 langgraph
 pytest
+qdrant-client
