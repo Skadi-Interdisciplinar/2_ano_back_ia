@@ -1,5 +1,21 @@
 # Acompanhamento da Implementacao Skadi
 
+## Serviço de relatórios PDF — 16/10/2026
+
+Implementado `POST /relatorios/pdf`, sem agente, LLM, RAG ou nova tool.
+Acesso restrito a GESTOR do próprio CD e SUPER_ADMIN com CD explícito.
+As consultas compartilham seleção de câmaras e autorização existentes e usam
+um snapshot PostgreSQL somente leitura. Geração ReportLab em memória seguida
+de registro atômico de metadados/hash e disponibilização. Foram removidos o
+especialista genérico de relatórios, seu prompt e sua rota interna do chat.
+`POST /chat` mantém token/mensagem e orienta o botão para pedidos de relatórios.
+
+Código principal: `routes/relatorios.py`, `relatorios.py`, `pdf_relatorio.py`;
+contrato completo em `docs/relatorios.md`. Adicionadas dependências ReportLab
+e pypdf (desenvolvimento), testes unitários e exemplos visuais sintéticos.
+Nenhuma migration ou escrita em bancos reais foi executada na implementação.
+A autenticação real continua pendente e o mock central não foi alterado.
+
 ## Atualização de escopo — 15/10/2026
 
 Por solicitação do usuário, o agente de predição foi removido: rota interna,

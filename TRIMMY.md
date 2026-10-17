@@ -59,23 +59,17 @@ Entre as possíveis causas analisadas estão falhas no compressor, abertura da p
 
 **Saída:** possíveis causas associadas à ocorrência identificada.
 
-## 4. Agente de Relatórios
+## 4. Serviço de relatórios PDF (fora do chat)
 
-O Agente de Relatórios é responsável pela organização e consolidação das informações armazenadas pelo sistema. Seu objetivo é gerar relatórios e estatísticas que permitam acompanhar o comportamento dos frigoríficos e o histórico de ocorrências.
+O botão do mobile chama `POST /relatorios/pdf` com token, CD, câmara (ou todas)
+e datas inicial/final. Não é um agente do grafo e não utiliza LLM ou RAG.
+GESTOR acessa o próprio CD; SUPER_ADMIN seleciona um CD. ADMIN e OPERADOR não
+podem gerar relatórios. As estatísticas são calculadas com as leituras do período,
+e o histórico de alertas inclui todos os status.
 
-Os relatórios podem utilizar informações relacionadas às temperaturas registradas, alertas gerados, desempenho dos equipamentos e ocorrências anteriores.
-
-**Responsabilidades:**
-
-* Consultar informações históricas do sistema;
-* Consolidar dados de temperatura e alertas;
-* Gerar estatísticas sobre os frigoríficos;
-* Organizar o histórico de ocorrências;
-* Produzir informações para acompanhamento e análise.
-
-**Entrada:** dados históricos, temperaturas, alertas e registros de ocorrências.
-
-**Saída:** relatórios, estatísticas e informações consolidadas.
+O PDF é entregue diretamente após registrar metadados, hash e disponibilização
+no PostgreSQL. Não há armazenamento permanente do arquivo, assinatura digital
+ou reabertura posterior. O contrato completo está em `docs/relatorios.md`.
 
 ## 5. Agente Assistente
 
@@ -101,6 +95,6 @@ O fluxo de comunicação tem como elemento central o **Agente Orquestrador**, re
 
 Em uma consulta sobre temperatura fora do padrão, o roteador encaminha pedidos de leitura e alertas ao **Agente de Monitoramento**, ou pedidos de análise de causas ao **Agente de Diagnóstico**. O **Agente Orquestrador** apresenta o resultado ao usuário.
 
-Quando o usuário solicita informações sobre o sistema, o **Agente Assistente** interpreta a solicitação e utiliza o orquestrador para consultar os agentes necessários. Caso sejam solicitadas informações históricas ou estatísticas, o **Agente de Relatórios** pode ser acionado para consolidar os dados.
+Quando o usuário solicita relatórios ou estatísticas no chat, recebe orientação para selecionar os filtros e usar o botão de PDF do aplicativo. Esse botão chama o serviço de relatórios diretamente, sem passar pelo grafo conversacional.
 
 Dessa forma, a arquitetura permite a especialização das tarefas, mantendo a coordenação centralizada do fluxo de informações e possibilitando que os resultados de diferentes agentes sejam combinados para atender às necessidades do sistema e do usuário.

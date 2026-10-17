@@ -5,6 +5,7 @@ import logging
 from app.erros import SaidaModeloInvalida, ServicoIndisponivel
 from app.llms import codigo_erro_groq
 from app.routes.chat import router as chat_router
+from app.routes.relatorios import router as relatorios_router
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from google.genai.errors import APIError as GeminiAPIError
@@ -27,6 +28,7 @@ app = FastAPI(
 
 
 app.include_router(chat_router)
+app.include_router(relatorios_router)
 
 
 async def acesso_negado(request: Request, erro: PermissionError):

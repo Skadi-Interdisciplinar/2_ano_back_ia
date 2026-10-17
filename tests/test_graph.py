@@ -42,6 +42,7 @@ def test_schema_aceita_rotas_permitidas(rota):
 @pytest.mark.parametrize("dados", [
     {"rota": "fora_do_escopo"}, {"rota": "diagnóstico"}, {"rota": ""},
     {"rota": "predicao"},
+    {"rota": "relatorios"},
     {"rota": "diagnostico", "usuario_id": 9},
     {"rota": "diagnostico", "nivel_acesso": "SUPER_ADMIN"},
 ])
@@ -52,7 +53,7 @@ def test_schema_rejeita_rotas_invalidas_e_campos_de_permissao(dados):
 
 def test_especialistas_tem_ordem_estavel_no_grafo():
     assert graph.ROTAS_ESPECIALISTAS == (
-        "monitoramento", "diagnostico", "relatorios", "faq",
+        "monitoramento", "diagnostico", "faq",
     )
 
 
@@ -69,6 +70,19 @@ def test_pedido_de_temperatura_futura_vai_direto_ao_orquestrador(modelo):
     assert criar.call_count == 1
     assert "não oferece previsões" in criar.call_args.kwargs["system_prompt"]
     assert "Não calcule estimativas" in modelo.invoke.call_args.args[0][0].content
+
+
+def test_chat_orienta_botao_de_relatorio_sem_especialista(modelo):
+    roteador = Mock()
+    roteador.invoke.return_value = {"structured_response": {"rota": "orquestrador"}}
+    modelo.invoke.return_value = AIMessage(content="Selecione os filtros e use o botão de gerar PDF no aplicativo.")
+    with patch("langchain.agents.create_agent", return_value=roteador) as criar:
+        resposta, agentes = graph.executar_fluxo_skadi("Gere um relatório do mês.")
+    assert agentes == ["roteador", "orquestrador"]
+    assert "botão" in resposta
+    assert criar.call_count == 1
+    assert "fora do chat" in criar.call_args.kwargs["system_prompt"]
+    assert "Não gere relatórios" in modelo.invoke.call_args.args[0][0].content
 
 
 def test_roteador_registra_rota_e_agente(modelo):

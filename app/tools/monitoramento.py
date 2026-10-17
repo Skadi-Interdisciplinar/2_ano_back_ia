@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from contextlib import closing
+from contextlib import ExitStack, closing
 from functools import lru_cache
 
 from app.config import REDIS_URL
@@ -50,6 +50,11 @@ def consultar_camaras_permitidas(
     """Única consulta cadastral interna; aplica autorização antes dos filtros."""
     criterios = FiltrosCamaraArgs(camara_id=camara_id, modelo=modelo, localizacao=localizacao)
     escopo = validar_acesso(usuario_id)
+    return _selecionar_camaras(escopo, criterios)
+
+
+def _selecionar_camaras(escopo, criterios: FiltrosCamaraArgs, *, cursor=None, cd_id=None) -> list[dict]:
+    """Seleção autorizada comum, também utilizável em um snapshot de relatório."""
     filtros = []
     parametros: list[object] = []
     if escopo.nivel_acesso == "SUPER_ADMIN":
@@ -59,6 +64,9 @@ def consultar_camaras_permitidas(
         parametros.append(escopo.cd_id)
     else:
         raise PermissionError("Usuário sem escopo de consulta de câmaras.")
+    if cd_id is not None:
+        filtros.append("cod_cd = %s")
+        parametros.append(cd_id)
     if criterios.camara_id is not None:
         filtros.append("id = %s")
         parametros.append(criterios.camara_id)
@@ -76,9 +84,14 @@ def consultar_camaras_permitidas(
         {where}
         ORDER BY localizacao, modelo, id
     """
-    with closing(get_conn()) as conexao, conexao.cursor() as cursor:
-        cursor.execute(consulta, tuple(parametros))
-        linhas = cursor.fetchall()
+    # Valida o escopo antes de abrir uma conexão operacional. Não fecha cursor recebido.
+    with ExitStack() as recursos:
+        cursor_ativo = cursor
+        if cursor_ativo is None:
+            conexao = recursos.enter_context(closing(get_conn()))
+            cursor_ativo = recursos.enter_context(conexao.cursor())
+        cursor_ativo.execute(consulta, tuple(parametros))
+        linhas = cursor_ativo.fetchall()
     return [
         {"camara_id": c[0], "modelo": c[1], "localizacao": c[2], "termometro": c[3],
          "limite_minimo": str(c[4]), "limite_maximo": str(c[5])}

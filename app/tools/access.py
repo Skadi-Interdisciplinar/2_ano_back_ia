@@ -15,15 +15,17 @@ class EscopoAcesso:
     cd_id: int | None
 
 
-def validar_acesso(usuario_id: int) -> EscopoAcesso:
+def validar_acesso(usuario_id: int, *, cursor=None) -> EscopoAcesso:
     """Consulta somente os campos aprovados para definir o escopo do usuario."""
 
-    with closing(get_conn()) as conexao, conexao.cursor() as cursor:
-        cursor.execute(
-            "SELECT id, nivel_acesso, cod_cd FROM tb_usuario WHERE id = %s",
-            (usuario_id,),
-        )
-        linha = cursor.fetchone()
+    if cursor is None:
+        with closing(get_conn()) as conexao, conexao.cursor() as cursor_local:
+            return validar_acesso(usuario_id, cursor=cursor_local)
+    cursor.execute(
+        "SELECT id, nivel_acesso, cod_cd FROM tb_usuario WHERE id = %s",
+        (usuario_id,),
+    )
+    linha = cursor.fetchone()
     if linha is None:
         raise PermissionError("Usuario autenticado nao encontrado no banco operacional.")
     nivel_acesso = str(linha[1]).strip().upper()

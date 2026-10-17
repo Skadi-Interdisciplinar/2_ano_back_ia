@@ -11,7 +11,6 @@ from app.prompts import (
     FAQ_PROMPT,
     MONITORAMENTO_PROMPT,
     ORQUESTRADOR_PROMPT,
-    RELATORIOS_PROMPT,
     ROTEADOR_PROMPT,
 )
 from app.schemas import DecisaoRota
@@ -21,12 +20,10 @@ from pydantic import ValidationError
 ROTAS_ESPECIALISTAS = (
     "monitoramento",
     "diagnostico",
-    "relatorios",
     "faq",
 )
 ROTAS = frozenset((*ROTAS_ESPECIALISTAS, "orquestrador"))
 PROMPTS_POR_ROTA = {
-    "relatorios": RELATORIOS_PROMPT,
     "faq": FAQ_PROMPT,
 }
 

@@ -29,6 +29,7 @@ dependencies = [
   "redis",
   "google-genai",
   "groq",
+  "reportlab>=4",
 ]
 
 [project.optional-dependencies]
@@ -37,6 +38,7 @@ dev = [
   "pytest-asyncio>=0.24",
   "ruff>=0.7",
   "build>=1.2",
+  "pypdf>=5",
 ]
 
 [tool.hatch.build.targets.wheel]
