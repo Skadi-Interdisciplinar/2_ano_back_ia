@@ -34,7 +34,7 @@ ativos/reconhecidos, pois o relatório é histórico e inclui todos os status.
 
 - Mínima/máxima globais e média aritmética de todas as leituras do filtro.
 - Quantidade de leituras, primeiro e último horário efetivamente observados.
-- Cada alerta é contado uma vez; críticos são os de gravidade `crítica`.
+- Cada alerta é contado uma vez; críticos são os de gravidade `CRITICA`.
 - Alertas filtrados pela criação no período, ordenados do mais recente ao antigo.
 - Status e gravidade são os existentes na consulta, não seu estado em uma data passada.
 - Uma série por câmara no gráfico, com os pontos registrados, sem criar leituras
@@ -62,11 +62,13 @@ Não houve mudança nos cálculos, autorização ou registro transacional.
 ## Entrega e auditoria
 
 Depois de renderizar, o serviço reconfere o perfil/CD e registra em uma única
-transação `tb_relatorio` com usuário, datas, SHA-256 dos bytes e status `gerado`,
-e `tb_log_acesso_relatorio` com ação `baixou`. Os valores correspondem ao schema
-implantado conferido no planejamento, não aos valores maiúsculos de outro script.
+transação `tb_relatorio` com usuário, datas, SHA-256 dos bytes e status `GERADO`,
+e `tb_log_acesso_relatorio` com ação `BAIXOU`. Os valores seguem o backend e o
+schema versionado, em maiúsculas e sem acento. Bancos antigos com valores em
+minúsculas precisam ser alinhados separadamente; esta alteração não migra registros
+nem modifica constraints ou triggers.
 Falha causa rollback e nenhum PDF é entregue. Essa operação não modifica alertas
-ou leituras. `baixou` registra disponibilização pela API, não recebimento no celular.
+ou leituras. `BAIXOU` registra disponibilização pela API, não recebimento no celular.
 Uma desconexão ou falha de rede depois do commit pode deixar o registro sem que
 o cliente receba o arquivo. Não há transação distribuída com o dispositivo.
 

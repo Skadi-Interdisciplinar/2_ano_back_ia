@@ -48,7 +48,7 @@ def test_monitoramento_preserva_aviso_de_leitura_simulada(monkeypatch):
 def test_alertas_de_admin_sao_filtrados_pelo_cd(monkeypatch):
     cursor = _banco_camaras(
         monkeypatch,
-        [("Modelo A", "Setor 1", "urgente", "ativo", "temperatura_fora_padrao", "2026-10-07", 1, 3)],
+        [("Modelo A", "Setor 1", "URGENTE", "ATIVO", "TEMPERATURA_FORA_PADRAO", "2026-10-07", 1, 3)],
     )
     monkeypatch.setattr(
         monitoramento,
@@ -61,13 +61,13 @@ def test_alertas_de_admin_sao_filtrados_pelo_cd(monkeypatch):
     assert alertas == [
         {
             "camara": "Modelo A — Setor 1",
-            "gravidade": "urgente",
-            "status": "ativo",
-            "tipo": "temperatura_fora_padrao",
+            "gravidade": "URGENTE",
+            "status": "ATIVO",
+            "tipo": "TEMPERATURA_FORA_PADRAO",
             "data_hora": "2026-10-07",
         }
     ]
-    assert cursor.execute.call_args.args[1] == ["ativo", "reconhecido", 2, 2]
+    assert cursor.execute.call_args.args[1] == ["ATIVO", "RECONHECIDO", 2, 2]
     assert "camara.cod_cd = %s" in cursor.execute.call_args.args[0]
     assert "atendimento.cod_usuario = %s" in cursor.execute.call_args.args[0]
 
@@ -81,7 +81,7 @@ def test_alertas_de_operador_exigem_nivel_operador(monkeypatch):
     )
 
     assert monitoramento.consultar_alertas_atuais(2) == []
-    assert cursor.execute.call_args.args[1] == ["ativo", "reconhecido", 2, 2, "operador"]
+    assert cursor.execute.call_args.args[1] == ["ATIVO", "RECONHECIDO", 2, 2, "OPERADOR"]
     assert "a.nivel_atual = %s" in cursor.execute.call_args.args[0]
 
 
@@ -94,12 +94,12 @@ def test_alertas_de_super_admin_nao_filtram_cd(monkeypatch):
     )
 
     assert monitoramento.consultar_alertas_atuais(1) == []
-    assert cursor.execute.call_args.args[1] == ["ativo", "reconhecido", 1]
+    assert cursor.execute.call_args.args[1] == ["ATIVO", "RECONHECIDO", 1]
     assert "camara.cod_cd = %s" not in cursor.execute.call_args.args[0]
 
 
 def test_tool_de_alertas_mantem_usuario_no_backend(monkeypatch):
-    consultar = Mock(return_value=[{"status": "ativo"}])
+    consultar = Mock(return_value=[{"status": "ATIVO"}])
     monkeypatch.setattr(monitoramento, "consultar_alertas_atuais", consultar)
 
     token = definir_usuario_contexto(2)
@@ -108,5 +108,5 @@ def test_tool_de_alertas_mantem_usuario_no_backend(monkeypatch):
     finally:
         restaurar_usuario_contexto(token)
 
-    assert resposta == [{"status": "ativo"}]
+    assert resposta == [{"status": "ATIVO"}]
     consultar.assert_called_once_with(2)

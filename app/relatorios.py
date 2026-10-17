@@ -93,7 +93,7 @@ def consultar_dados_relatorio(usuario_id: int, filtros: RelatorioRequest) -> dic
         "primeira_leitura": min(l[2] for l in leituras) if leituras else None,
         "ultima_leitura": max(l[2] for l in leituras) if leituras else None,
         "total_alertas": len(alertas),
-        "ocorrencias_criticas": sum(a[4] == "crítica" for a in alertas),
+        "ocorrencias_criticas": sum(a[4] == "CRITICA" for a in alertas),
         "dados_simulados": any(isinstance(l[3], str) and l[3].startswith("sim-trimmy-") for l in leituras),
     }
 
@@ -109,13 +109,13 @@ def registrar_relatorio(usuario_id: int, dados: dict, pdf: bytes) -> None:
                     "INSERT INTO tb_relatorio "
                     "(cod_usuario_gerador, periodo_inicio, periodo_fim, hash_conteudo, status) "
                     "VALUES (%s, %s, %s, %s, %s) RETURNING id",
-                    (usuario_id, dados["data_inicial"], dados["data_final"], sha256(pdf).hexdigest(), "gerado"),
+                    (usuario_id, dados["data_inicial"], dados["data_final"], sha256(pdf).hexdigest(), "GERADO"),
                 )
                 relatorio_id = cursor.fetchone()[0]
                 cursor.execute(
                     "INSERT INTO tb_log_acesso_relatorio (cod_relatorio, cod_usuario, acao) "
                     "VALUES (%s, %s, %s)",
-                    (relatorio_id, usuario_id, "baixou"),
+                    (relatorio_id, usuario_id, "BAIXOU"),
                 )
             conexao.commit()
         except Exception:

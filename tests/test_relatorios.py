@@ -32,9 +32,9 @@ def preparar_banco(monkeypatch, nivel="GESTOR", cd=7, camaras=None, leituras=Non
             (10, Decimal(10), datetime(2026, 10, 2, 23, 59, 59), "e3"),
         ],
         alertas if alertas is not None else [
-            (3, 3, "temperatura_fora_padrao", datetime(2026, 10, 2, 12), "crítica", "resolvido"),
-            (2, 4, "temperatura_fora_padrao", datetime(2026, 10, 2), "urgente", "reconhecido"),
-            (1, 3, "temperatura_fora_padrao", datetime(2026, 10, 1), "baixa", "ativo"),
+            (3, 3, "TEMPERATURA_FORA_PADRAO", datetime(2026, 10, 2, 12), "CRITICA", "RESOLVIDO"),
+            (2, 4, "TEMPERATURA_FORA_PADRAO", datetime(2026, 10, 2), "URGENTE", "RECONHECIDO"),
+            (1, 3, "TEMPERATURA_FORA_PADRAO", datetime(2026, 10, 1), "BAIXA", "ATIVO"),
         ],
     ]
     monkeypatch.setattr(relatorios, "get_conn", Mock(return_value=conexao))
@@ -98,6 +98,20 @@ def test_resumo_consolidado_usa_leituras_e_historico_completo(monkeypatch, nivel
     assert "JOIN" not in consultas[4][0]
 
 
+@pytest.mark.parametrize("gravidade,quantidade", [
+    ("CRITICA", 1), ("URGENTE", 0), ("ATENCAO", 0), ("BAIXA", 0),
+])
+def test_contagem_critica_usa_gravidades_do_backend(monkeypatch, gravidade, quantidade):
+    preparar_banco(monkeypatch, alertas=[
+        (1, 3, "TEMPERATURA_FORA_PADRAO", datetime(2026, 10, 1), gravidade, "ATIVO"),
+    ])
+
+    dados = relatorios.consultar_dados_relatorio(2, filtros())
+
+    assert dados["total_alertas"] == 1
+    assert dados["ocorrencias_criticas"] == quantidade
+
+
 def test_camara_especifica_limita_ambas_as_consultas(monkeypatch):
     cursor, _ = preparar_banco(monkeypatch, camaras=[(3, "A", "Setor 1", 9, 2, 6)], alertas=[])
     relatorios.consultar_dados_relatorio(2, filtros(camara_id=3))
@@ -153,8 +167,8 @@ def test_registro_atomico_contem_hash_periodo_e_usuario(monkeypatch):
     relatorios.registrar_relatorio(2, dados, b"%PDF-teste")
 
     consultas = [c.args for c in cursor.execute.call_args_list]
-    assert consultas[1][1] == (2, dados["data_inicial"], dados["data_final"], sha256(b"%PDF-teste").hexdigest(), "gerado")
-    assert consultas[2][1] == (88, 2, "baixou")
+    assert consultas[1][1] == (2, dados["data_inicial"], dados["data_final"], sha256(b"%PDF-teste").hexdigest(), "GERADO")
+    assert consultas[2][1] == (88, 2, "BAIXOU")
     conexao.commit.assert_called_once()
     conexao.rollback.assert_not_called()
     conexao.close.assert_called_once()

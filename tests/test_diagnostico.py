@@ -505,7 +505,7 @@ def test_nao_existe_fonte_de_relato_para_fala_do_assistente(monkeypatch):
 def test_apresentacao_de_ambiguidade_nao_mostra_ids(contexto):
     contexto.evidencias["consulta"] = {
         "status": "alerta_ambiguo", "mensagem": "Escolha a ocorrência.",
-        "opcoes": [{"alerta_id": 99, "tipo": "temperatura", "status": "ativo", "data_hora": "2026-10-11"}],
+        "opcoes": [{"alerta_id": 99, "tipo": "TEMPERATURA_FORA_PADRAO", "status": "ATIVO", "data_hora": "2026-10-11"}],
     }
 
     texto = apresentar_diagnostico(validar_analise(
@@ -513,7 +513,7 @@ def test_apresentacao_de_ambiguidade_nao_mostra_ids(contexto):
     ))
 
     assert "Escolha a ocorrência" in texto
-    assert "temperatura" in texto
+    assert "TEMPERATURA_FORA_PADRAO" in texto
     assert "99" not in texto
 
 

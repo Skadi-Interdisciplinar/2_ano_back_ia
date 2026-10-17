@@ -33,7 +33,7 @@ def contexto(monkeypatch):
 def alerta(id=1):
     return {
         "alerta_id": id, "camara_id": 3, "camara": "A — Setor 1",
-        "tipo": "temperatura", "status": "ativo", "gravidade": "urgente",
+        "tipo": "TEMPERATURA_FORA_PADRAO", "status": "ATIVO", "gravidade": "URGENTE",
         "data_hora": "2026-10-11T09:00:00",
     }
 
@@ -220,10 +220,10 @@ def test_falha_qdrant_nao_e_lista_vazia(contexto, monkeypatch):
 
 
 @pytest.mark.parametrize("nivel,cd,parametros", [
-    ("SUPER_ADMIN", None, ["ativo", "reconhecido", 2, 3, 1]),
-    ("ADMIN", 7, ["ativo", "reconhecido", 2, 7, 3, 1]),
-    ("GESTOR", 7, ["ativo", "reconhecido", 2, 7, 3, 1]),
-    ("OPERADOR", 7, ["ativo", "reconhecido", 2, 7, "operador", 3, 1]),
+    ("SUPER_ADMIN", None, ["ATIVO", "RECONHECIDO", 2, 3, 1]),
+    ("ADMIN", 7, ["ATIVO", "RECONHECIDO", 2, 7, 3, 1]),
+    ("GESTOR", 7, ["ATIVO", "RECONHECIDO", 2, 7, 3, 1]),
+    ("OPERADOR", 7, ["ATIVO", "RECONHECIDO", 2, 7, "OPERADOR", 3, 1]),
 ])
 def test_consulta_comum_preserva_todos_filtros(monkeypatch, nivel, cd, parametros):
     cursor, conexao = banco_sql()

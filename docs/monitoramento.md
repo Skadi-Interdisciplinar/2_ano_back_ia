@@ -33,6 +33,10 @@ Alertas permanecem separados, com os filtros já aprovados para status, CD,
 nível do operador e reconhecimento pelo próprio usuário. Não houve ampliação
 de permissões nem mudança de esquema dos bancos.
 
+Os filtros usam os valores do backend em maiúsculas e sem acento: `ATIVO`,
+`RECONHECIDO` e `OPERADOR`. Gravidade, tipo e status retornados pelo banco são
+preservados; dados antigos não são convertidos silenciosamente pela consulta.
+
 O usuário vem do contexto interno, nunca de argumentos do LLM. SQL usa parâmetros.
 A autenticação continua mockada com usuário 2; não publicar esse bypass em produção.
 

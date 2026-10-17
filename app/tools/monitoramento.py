@@ -191,7 +191,7 @@ def consultar_alertas_permitidos(
         )))
         """
     ]
-    parametros: list[object] = ["ativo", "reconhecido", usuario_id]
+    parametros: list[object] = ["ATIVO", "RECONHECIDO", usuario_id]
 
     if escopo.nivel_acesso == "SUPER_ADMIN":
         pass
@@ -200,7 +200,7 @@ def consultar_alertas_permitidos(
         parametros.append(escopo.cd_id)
     elif escopo.nivel_acesso == "OPERADOR" and escopo.cd_id is not None:
         filtros.extend(["camara.cod_cd = %s", "a.nivel_atual = %s"])
-        parametros.extend([escopo.cd_id, "operador"])
+        parametros.extend([escopo.cd_id, "OPERADOR"])
     else:
         raise PermissionError("Usuário sem escopo de consulta de alertas.")
 

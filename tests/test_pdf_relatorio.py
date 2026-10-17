@@ -15,8 +15,11 @@ def test_pdf_contem_estatisticas_alertas_e_ressalvas(monkeypatch):
     leitor = PdfReader(BytesIO(pdf))
     texto = " ".join(p.extract_text() for p in leitor.pages)
     assert pdf.startswith(b"%PDF-")
-    for trecho in ("SKADI", "CD Teste", "-2,00", "2,67", "10,00", "resolvido", "reconhecido", "ativo", "Série 1", "Série 2", "não comprovam histórico contínuo"):
+    for trecho in ("SKADI", "CD Teste", "-2,00", "2,67", "10,00", "Série 1", "Série 2", "não comprovam histórico contínuo"):
         assert trecho in texto
+    # A extração pode inserir quebra de linha em palavras longas nas células.
+    for status in ("RESOLVIDO", "RECONHECIDO", "ATIVO"):
+        assert status in "".join(texto.split())
     assert f"Página 1 de {len(leitor.pages)}" in texto
     primeira = leitor.pages[0].extract_text()
     assert "Resumo executivo do período" in primeira
