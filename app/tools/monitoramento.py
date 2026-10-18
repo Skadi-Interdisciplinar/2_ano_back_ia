@@ -126,8 +126,6 @@ def _ultimas_leituras_permitidas(termometros: set[str]) -> dict[str, dict]:
                         "temperatura": campos.get("temperatura"),
                         "data_hora": campos.get("data_hora"),
                     }
-                    if campos.get("origem") == "SIMULADO":
-                        leituras[sensor]["origem"] = "SIMULADO"
             ultimo_id = eventos[-1][0]
             if ultimo_id == limite_superior or len(eventos) < 1_000:
                 break
@@ -170,7 +168,6 @@ def consultar_temperaturas_permitidas(
             "temperatura": leitura.get("temperatura") if leitura else None,
             "data_hora": leitura.get("data_hora") if leitura else None,
             "leitura_disponivel": bool(leitura and leitura.get("temperatura") is not None),
-            **({"origem_leitura": "SIMULADO"} if leitura and leitura.get("origem") == "SIMULADO" else {}),
         })
     return {"status": "ok", "camaras": resultado}
 

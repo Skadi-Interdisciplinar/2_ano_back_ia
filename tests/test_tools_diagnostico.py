@@ -75,6 +75,83 @@ def test_sem_identificacao_nao_lista_todas(contexto):
     diagnostico.consultar_camaras_permitidas.assert_not_called()
 
 
+def test_ultimo_alerta_seleciona_mais_recente_e_consulta_sua_justificativa(contexto, monkeypatch):
+    antigo = {**alerta(2), "data_hora": "2026-10-10T09:00:00"}
+    diagnostico.consultar_alertas_permitidos.return_value = [alerta(1), antigo]
+    cursor, conexao = banco_sql(retornos=[(4, "Porta", "Porta aberta", "2026-10-11T09:10:00")])
+    monkeypatch.setattr(diagnostico, "get_conn", Mock(return_value=conexao))
+
+    resultado = diagnostico.consultar_evidencias_diagnostico.invoke({"camara_id": 3, "ultimo_alerta": True})
+
+    assert resultado["status"] == "ok"
+    assert resultado["ultimo_alerta_solicitado"] is True
+    assert resultado["alerta"]["data_hora"] == alerta()["data_hora"]
+    assert resultado["justificativas"][0]["descricao"] == "Porta aberta"
+    assert cursor.execute.call_args.args[1] == (1, 3)
+    diagnostico.consultar_alertas_permitidos.assert_called_with(2, 3, 1)
+
+
+def test_ultimo_alerta_com_empate_pede_escolha(contexto, monkeypatch):
+    diagnostico.consultar_alertas_permitidos.return_value = [alerta(1), alerta(2)]
+    banco = Mock()
+    monkeypatch.setattr(diagnostico, "get_conn", banco)
+
+    resultado = diagnostico.consultar_evidencias_diagnostico.invoke({"camara_id": 3, "ultimo_alerta": True})
+
+    assert resultado["status"] == "alerta_ambiguo"
+    assert len(resultado["opcoes"]) == 2
+    banco.assert_not_called()
+
+
+def test_ultimo_alerta_sem_ocorrencia_nao_amplia_consulta(contexto, monkeypatch):
+    banco = Mock()
+    monkeypatch.setattr(diagnostico, "get_conn", banco)
+
+    resultado = diagnostico.consultar_evidencias_diagnostico.invoke({"camara_id": 3, "ultimo_alerta": True})
+
+    assert resultado["alerta"] is None
+    diagnostico.consultar_alertas_permitidos.assert_called_once_with(2, 3)
+    banco.assert_not_called()
+
+
+def test_ultimo_alerta_nao_combina_com_id_especifico(contexto):
+    with pytest.raises(dominio.SaidaDiagnosticoInvalida):
+        diagnostico.consultar_evidencias_diagnostico.invoke({
+            "camara_id": 3, "ultimo_alerta": True, "alerta_id": 1,
+        })
+    diagnostico.consultar_camaras_permitidas.assert_not_called()
+
+
+def test_pergunta_original_consulta_alerta_e_justificativa_com_tools_reais(contexto, monkeypatch):
+    from app.tools import access
+    from langchain_core.messages import HumanMessage
+
+    monkeypatch.setattr(access, "validar_acesso", Mock(return_value=EscopoAcesso(2, "ADMIN", 2)))
+    antigo = {**alerta(2), "data_hora": "2026-10-10T09:00:00"}
+    diagnostico.consultar_alertas_permitidos.return_value = [alerta(1), antigo]
+    diagnostico._ultimas_leituras_permitidas.return_value = {
+        "9": {"temperatura": "4", "data_hora": "2026-10-11T10:00:00"},
+    }
+    cursor, conexao = banco_sql(retornos=[(4, "Porta", "Porta aberta", "2026-10-11T09:10:00")])
+    monkeypatch.setattr(diagnostico, "get_conn", Mock(return_value=conexao))
+    modelo = Mock()
+
+    analise = dominio.executar_diagnostico([HumanMessage(
+        content="o que causou a alteração na camara 3 no ultimo alerta?",
+    )], modelo)
+    resposta = dominio.apresentar_diagnostico(analise)
+
+    assert "Qual câmara" not in resposta
+    assert "último alerta permitido" in resposta
+    assert "Porta aberta" in resposta
+    assert "dentro da faixa" in resposta
+    assert "não uma causa verificada" in resposta
+    assert "alerta_id" not in resposta
+    assert cursor.execute.call_args.args[1] == (1, 3)
+    diagnostico.consultar_camaras_permitidas.assert_called_once_with(2, 3, None, None)
+    modelo.invoke.assert_not_called()
+
+
 def test_alerta_ambiguo_pede_escolha_e_nao_busca_justificativa(contexto, monkeypatch):
     diagnostico.consultar_alertas_permitidos.return_value = [alerta(1), alerta(2)]
     banco = Mock()

@@ -209,8 +209,6 @@ def renderizar_pdf(dados: dict) -> bytes:
         canvas.restoreState()
 
     conteudo = [NextPageTemplate("Detalhes")]
-    if dados["dados_simulados"]:
-        conteudo.extend([texto("ATENÇÃO: contém dados simulados de teste, não medições reais.", "nota"), Spacer(1, 8)])
     conteudo.extend([faixa("Resumo executivo do período"), Spacer(1, 10)])
     selecao = "Relatório de temperatura - Todas as câmaras" if dados["todas"] else (
         f"{dados['camaras'][0]['modelo']} - {dados['camaras'][0]['localizacao']}")

@@ -94,7 +94,6 @@ def consultar_dados_relatorio(usuario_id: int, filtros: RelatorioRequest) -> dic
         "ultima_leitura": max(l[2] for l in leituras) if leituras else None,
         "total_alertas": len(alertas),
         "ocorrencias_criticas": sum(a[4] == "CRITICA" for a in alertas),
-        "dados_simulados": any(isinstance(l[3], str) and l[3].startswith("sim-trimmy-") for l in leituras),
     }
 
 

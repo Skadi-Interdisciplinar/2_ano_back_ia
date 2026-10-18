@@ -34,8 +34,21 @@ usuário. O filtro adicional de nível atual `operador` permanece para OPERADOR.
 
 Identificação pode usar ID explicitamente informado, modelo ou localização.
 Ausência, ambiguidade ou identificação inexistente não amplia a busca. Vários
-alertas exigem escolha por tipo/horário, sem selecionar automaticamente o último.
+alertas exigem escolha por tipo/horário. Quando o usuário pedir explicitamente o
+último alerta, `ultimo_alerta=true` seleciona a data mais recente da consulta já
+autorizada; empates continuam exigindo escolha. Não inclui outros status nem
+alertas fora do escopo. Não combinar esse seletor com `alerta_id`.
 IDs servem somente para associação interna e não aparecem na apresentação final.
+
+Pedidos com uma única identificação literal como “câmara 3” e “último alerta”
+passam diretamente pela mesma tool autorizada, sem depender do LLM para repetir
+esses argumentos. Outros casos continuam usando o especialista e seu histórico.
+O contrato de `POST /chat` e a quantidade de tools não mudam.
+
+Na consulta do último alerta, a resposta preserva a ocorrência e sua justificativa
+mesmo quando a última leitura está dentro dos limites. A justificativa é um relato,
+não confirmação da causa. A leitura do Redis não está vinculada à ocorrência e
+não sustenta hipóteses técnicas sobre aquele evento nem comprova sua resolução.
 
 O schema e os vínculos foram conferidos no PostgreSQL em 2026-10-11:
 `tb_justificativa.cod_atendimento → tb_atendimento.id → cod_alerta → tb_alerta.id

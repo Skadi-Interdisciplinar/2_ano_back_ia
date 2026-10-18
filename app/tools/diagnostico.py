@@ -6,7 +6,7 @@ from contextlib import closing
 from copy import deepcopy
 from uuid import uuid4
 
-from app.diagnostico import obter_contexto_diagnostico
+from app.diagnostico import SaidaDiagnosticoInvalida, obter_contexto_diagnostico
 from app.regras_diagnostico import recuperar_regras
 from app.tools.access import validar_acesso
 from app.tools.contexto import obter_usuario_contexto
@@ -23,6 +23,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ConsultarEvidenciasArgs(FiltrosCamaraArgs):
+    ultimo_alerta: bool = Field(
+        default=False, strict=True,
+        description="True somente quando o usuário pedir o último alerta ou o mais recente permitido.",
+    )
     alerta_id: int | None = Field(
         default=None, strict=True,
         description="ID interno retornado por consulta desta execução. Nunca inventar.",
@@ -38,13 +42,17 @@ class BuscarRegrasArgs(BaseModel):
 def consultar_evidencias_diagnostico(
     camara_id: int | None = None, modelo: str | None = None,
     localizacao: str | None = None, alerta_id: int | None = None,
+    ultimo_alerta: bool = False,
 ) -> dict:
     """Reúne dados permitidos de uma única câmara e justificativas da ocorrência selecionada."""
     usuario = obter_usuario_contexto()
     contexto = obter_contexto_diagnostico()
     validar_acesso(usuario)
+    if ultimo_alerta and alerta_id is not None:
+        raise SaidaDiagnosticoInvalida("Escolha último alerta ou alerta específico, não ambos.")
     referencia = str(uuid4())
     dados: dict = {"referencia": referencia, "status": "identificacao_necessaria", "opcoes": []}
+    dados["ultimo_alerta_solicitado"] = ultimo_alerta
     if all(v is None for v in (camara_id, modelo, localizacao)):
         dados["mensagem"] = "Qual câmara deseja analisar? Informe modelo ou localização."
     else:
@@ -59,6 +67,11 @@ def consultar_evidencias_diagnostico(
         else:
             camara = camaras[0]
             alertas = consultar_alertas_permitidos(usuario, camara["camara_id"])
+            if ultimo_alerta and alertas:
+                # A consulta compartilhada já ordena por data_hora DESC. Empates
+                # continuam ambíguos: não escolher uma ocorrência pelo ID.
+                horario = alertas[0]["data_hora"]
+                alertas = [a for a in alertas if a["data_hora"] == horario]
             dados["camara"] = _cadastro_publico(camara)
             # O ID opcional só pode selecionar uma opção retornada por tool nesta execução.
             if alerta_id is not None:

@@ -448,6 +448,71 @@ def test_prompt_dispensa_rag_somente_com_leitura_dentro_da_faixa():
     assert "Dados ausentes ou inválidos não significam dentro da faixa" in DIAGNOSTICO_PROMPT
 
 
+@pytest.mark.parametrize("temperatura", ["4", "8", None])
+def test_ultimo_alerta_nao_usa_redis_como_prova_da_ocorrencia(contexto, monkeypatch, temperatura):
+    evidencia = contexto.evidencias["consulta"]
+    evidencia["ultimo_alerta_solicitado"] = True
+    evidencia["leitura"]["temperatura"] = temperatura
+    evidencia["alerta"] = {
+        "tipo": "TEMPERATURA_FORA_PADRAO", "status": "ATIVO", "gravidade": "URGENTE",
+        "data_hora": "2026-10-10T09:00:00",
+    }
+    evidencia["justificativas"] = [{
+        "motivo": "Porta", "descricao": "Porta aberta", "data_hora": "2026-10-10T09:15:00",
+    }]
+    base = Mock(side_effect=RuntimeError("Não deve buscar regras para a leitura posterior"))
+    monkeypatch.setattr(diagnostico, "carregar_regras", base)
+
+    analise = validar_analise(PropostaDiagnostico(evidencia_ref="consulta"), contexto)
+    texto = apresentar_diagnostico(analise)
+
+    base.assert_not_called()
+    assert "último alerta permitido" in texto
+    assert "Porta aberta" in texto
+    assert "É um relato, não uma causa verificada" in texto
+    assert "não posso confirmar a causa técnica" in texto
+    assert analise.hipoteses == []
+
+
+def test_ultimo_alerta_ausente_explicado_sem_inventar_causa(contexto):
+    contexto.evidencias["consulta"]["ultimo_alerta_solicitado"] = True
+
+    analise = validar_analise(PropostaDiagnostico(evidencia_ref="consulta"), contexto)
+
+    assert "Não encontrei alerta disponível" in apresentar_diagnostico(analise)
+    assert analise.hipoteses == []
+
+
+@pytest.mark.parametrize("pergunta", [
+    "o que causou a alteração na camara 3 no ultimo alerta?",
+    "O que causou a alteração na câmara 3 no alerta mais recente?",
+])
+def test_pergunta_com_id_e_ultimo_alerta_consulta_sem_perder_identificacao(contexto, monkeypatch, pergunta):
+    from app.tools import access
+    from app.tools import diagnostico as tools
+
+    usuario = definir_usuario_contexto(2)
+    monkeypatch.setattr(access, "validar_acesso", Mock(return_value=EscopoAcesso(2, "ADMIN", 2)))
+
+    def consultar(argumentos):
+        assert argumentos == {"camara_id": 3, "ultimo_alerta": True}
+        atual = diagnostico.obter_contexto_diagnostico()
+        atual.evidencias["consulta"] = {**contexto.evidencias["consulta"], "ultimo_alerta_solicitado": True}
+        return {"referencia": "consulta"}
+
+    consulta = Mock(side_effect=consultar)
+    monkeypatch.setattr(tools, "consultar_evidencias_diagnostico", Mock(invoke=consulta))
+    try:
+        with patch("app.llms.criar_agente") as criar:
+            analise = diagnostico.executar_diagnostico([HumanMessage(content=pergunta)], Mock())
+        criar.assert_not_called()
+        consulta.assert_called_once()
+        assert analise.evidencias["camara"]["modelo"] == "A"
+        assert "Qual câmara" not in apresentar_diagnostico(analise)
+    finally:
+        restaurar_usuario_contexto(usuario)
+
+
 def test_persona_amigavel_nao_altera_contratos_internos():
     from app.prompts import ORQUESTRADOR_PROMPT, PERSONA_SISTEMA, ROTEADOR_PROMPT
 

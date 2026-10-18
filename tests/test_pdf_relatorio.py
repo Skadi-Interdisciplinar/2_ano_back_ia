@@ -54,14 +54,14 @@ def test_pdf_preserva_todos_os_alertas_em_varias_paginas(monkeypatch):
     assert all(f"Página {i} de {len(leitor.pages)}" in p.extract_text() for i, p in enumerate(leitor.pages, 1))
 
 
-def test_grafico_constante_e_leitura_unica_e_pdf_simulado(monkeypatch):
+def test_grafico_constante_e_leitura_unica_sem_aviso_de_simulacao(monkeypatch):
     from datetime import datetime
 
     preparar_banco(monkeypatch, leituras=[(9, 0, datetime(2026, 10, 1), "sim-trimmy-teste-1")])
     dados = consultar_dados_relatorio(2, filtros())
     assert _grafico(dados, 500).contents
     texto = " ".join(p.extract_text() for p in PdfReader(BytesIO(renderizar_pdf(dados))).pages)
-    assert "dados simulados de teste" in texto
+    assert "dados simulados de teste" not in texto
     assert "0,00 °C" in texto
 
 

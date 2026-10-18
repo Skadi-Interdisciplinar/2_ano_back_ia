@@ -155,8 +155,8 @@ informações necessárias para interpretar os dados:
 - Quantidade de leituras, primeiro e último horário observado e data de geração.
 - Aviso de que o relatório representa os registros disponíveis, não garantia
   de coleta contínua ou condição atual.
-- Aviso de dados simulados, quando indicado pelo backend, visível na primeira
-  página e antes de interpretar os indicadores.
+- Não há classificação ou aviso automático de dados simulados. Os avisos sobre
+  registros disponíveis e ausência de garantia de condição atual permanecem.
 - Para seleção de várias câmaras, identificação legível das séries; uma relação
   extensa de câmaras pode continuar em página complementar.
 

@@ -86,7 +86,7 @@ def test_resumo_consolidado_usa_leituras_e_historico_completo(monkeypatch, nivel
     assert dados["quantidade_leituras"] == 3
     assert dados["total_alertas"] == 3
     assert dados["ocorrencias_criticas"] == 1  # Inclui o alerta resolvido.
-    assert dados["dados_simulados"] is False
+    assert "dados_simulados" not in dados
     conexao.set_session.assert_called_once_with(isolation_level="REPEATABLE READ", readonly=True)
     conexao.close.assert_called_once()
     consultas = [c.args for c in cursor.execute.call_args_list]
@@ -153,9 +153,13 @@ def test_leitura_invalida_nao_e_descartada_silenciosamente(monkeypatch, valor, h
         relatorios.consultar_dados_relatorio(2, filtros())
 
 
-def test_origem_simulada_identificada_pelo_evento(monkeypatch):
+def test_evento_de_leitura_nao_define_classificacao_do_relatorio(monkeypatch):
     preparar_banco(monkeypatch, leituras=[(9, 4, datetime(2026, 10, 1), "sim-trimmy-lote-1")])
-    assert relatorios.consultar_dados_relatorio(2, filtros())["dados_simulados"] is True
+    dados = relatorios.consultar_dados_relatorio(2, filtros())
+    assert dados["quantidade_leituras"] == 1
+    assert dados["minima"] == dados["media"] == dados["maxima"] == 4
+    assert dados["leituras"][0][3] == "sim-trimmy-lote-1"
+    assert "dados_simulados" not in dados
 
 
 def test_registro_atomico_contem_hash_periodo_e_usuario(monkeypatch):

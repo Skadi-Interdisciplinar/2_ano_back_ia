@@ -161,7 +161,8 @@ alertas atuais permitidos para você. Por isso, as listas podem ser diferentes.
 
 O relatório informa que não há leituras, sem mostrar temperatura zero como se
 fosse uma medição. Ainda pode apresentar os alertas registrados no período.
-Quando houver dados identificados como simulados, o documento exibirá um aviso.
+O relatório não classifica automaticamente a origem dos registros como simulada
+ou real.
 
 ### FAQ-023 - A média do relatório é a média das médias de cada câmara?
 

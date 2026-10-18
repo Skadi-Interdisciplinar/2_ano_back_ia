@@ -41,7 +41,9 @@ ativos/reconhecidos, pois o relatório é histórico e inclui todos os status.
   intermediárias; as linhas só conectam os registros.
 - Sem leituras: estatísticas indisponíveis, não zero. Sem alertas: contagem zero.
 - Valores não finitos ou datas de leitura inválidas impedem a geração.
-- Eventos `sim-trimmy-...` causam aviso de dados de teste, inclusive em séries mistas.
+- A origem simulada não é classificada automaticamente pelo ID do evento;
+  o relatório não adiciona aviso específico de simulação. Isso não comprova
+  que os registros sejam medições reais.
 
 O documento usa o cadastro e os vínculos atuais dos termômetros; não reconstrói
 movimentações de equipamentos. Quantidades refletem os registros disponíveis,

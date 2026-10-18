@@ -182,6 +182,20 @@ def validar_analise(proposta: PropostaDiagnostico, contexto: ContextoDiagnostico
     except (InvalidOperation, ValueError, TypeError):
         analise.limitacoes.append("Leitura, horário ou limites ausentes/inválidos; não é possível aplicar hipóteses.")
     analise.evidencias = {**evidencias, "comparacao": cenario}
+    if evidencias.get("ultimo_alerta_solicitado"):
+        # A leitura do Redis não está vinculada à ocorrência passada. Não usá-la
+        # para sustentar hipóteses nem concluir que o alerta foi resolvido.
+        analise.limitacoes.append(
+            "A última leitura não comprova a temperatura no momento desse alerta nem que a ocorrência foi resolvida."
+        )
+        if evidencias.get("alerta") is None:
+            analise.limitacoes.append("Não encontrei alerta disponível nos filtros que seu usuário pode consultar.")
+        elif not evidencias.get("justificativas"):
+            analise.limitacoes.append("Esse alerta não tem justificativa registrada disponível para explicar o ocorrido.")
+        analise.limitacoes.append(
+            "Sem uma leitura vinculada à ocorrência e evidências suficientes, não posso confirmar a causa técnica."
+        )
+        return analise
     if cenario == "dentro_faixa":
         # Resposta baseada na comparação verificada, sem buscar/aplicar causas.
         analise.limitacoes = [
@@ -302,13 +316,14 @@ def apresentar_diagnostico(analise: AnaliseDiagnostico) -> str:
                 "dentro_faixa": "dentro da faixa.",
             }[dados["comparacao"]]
         partes.append(faixa)
-    if dados.get("comparacao") == "dentro_faixa":
+    if dados.get("comparacao") == "dentro_faixa" and not dados.get("ultimo_alerta_solicitado"):
         partes.extend(analise.limitacoes)
         return "\n\n".join(partes)
     alerta = dados.get("alerta")
     if alerta:
         partes.append(
-            f"Encontrei um alerta de {alerta['tipo']}, com status {alerta['status']} e "
+            f"Encontrei {'o último alerta permitido' if dados.get('ultimo_alerta_solicitado') else 'um alerta'} "
+            f"de {alerta['tipo']}, com status {alerta['status']} e "
             f"gravidade registrada {alerta['gravidade']}, em {alerta['data_hora']}. "
             "A última leitura não foi necessariamente registrada no momento do alerta."
         )
@@ -345,7 +360,7 @@ def executar_diagnostico(mensagens: list, modelo) -> AnaliseDiagnostico:
     from app.llms import criar_agente
     from app.prompts import DIAGNOSTICO_PROMPT
     from app.tools.access import validar_acesso
-    from app.tools.diagnostico import TOOLS
+    from app.tools.diagnostico import TOOLS, consultar_evidencias_diagnostico
     from langchain.agents.structured_output import StructuredOutputError, ToolStrategy
     from langchain_core.messages import HumanMessage
 
@@ -359,6 +374,18 @@ def executar_diagnostico(mensagens: list, modelo) -> AnaliseDiagnostico:
             contexto.fontes[f"mensagem:{i}"] = {"texto": mensagem.content}
     token = contexto_diagnostico.set(contexto)
     try:
+        # Uma identificação literal na pergunta não precisa ser redescoberta pelo
+        # LLM. A seleção continua passando pela mesma tool e autorização.
+        pergunta = next(reversed(contexto.fontes.values()), {}).get("texto", "")
+        ids = set(re.findall(r"\bc[âa]mara\s+(\d+)\b", pergunta, re.IGNORECASE))
+        ultimo = bool(re.search(
+            r"\b(?:[úu]ltimo\s+alerta|alerta\s+mais\s+recente)\b", pergunta, re.IGNORECASE,
+        ))
+        if len(ids) == 1 and ultimo:
+            evidencias = consultar_evidencias_diagnostico.invoke({
+                "camara_id": int(next(iter(ids))), "ultimo_alerta": True,
+            })
+            return validar_analise(PropostaDiagnostico(evidencia_ref=evidencias["referencia"]), contexto)
         agente = criar_agente(
             model=modelo, system_prompt=DIAGNOSTICO_PROMPT, tools=TOOLS,
             response_format=ToolStrategy(PropostaDiagnostico, handle_errors=False),

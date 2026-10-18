@@ -32,7 +32,9 @@ futura são encaminhados ao orquestrador para informar a indisponibilidade do
 recurso, sem calcular estimativas ou reutilizar resultados do histórico.
 Monitoramento, diagnóstico, memória e as demais rotas foram preservados.
 Nenhum banco, leitura, alerta ou registro de conversa foi alterado. A marcação
-de leituras simuladas no monitoramento permanece necessária e foi preservada.
+de leituras simuladas foi preservada nessa etapa e retirada posteriormente,
+a pedido do usuário, do monitoramento e dos relatórios. Isso não transforma
+dados de teste em medições reais; validações de acesso, números e datas permanecem.
 Os registros abaixo descrevem etapas anteriores, não o contrato atual da API.
 
 ## Etapa: Fundacao segura do backend da IA
