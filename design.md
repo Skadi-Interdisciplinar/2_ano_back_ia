@@ -196,6 +196,6 @@ verificar dados e paginação. Validar especialmente:
 - Ausência de sobreposição, texto cortado, glifos inválidos ou tabelas truncadas.
 - Igualdade entre indicadores do resumo e os repetidos sobre o gráfico.
 - Preservação dos filtros, dos valores calculados e das ressalvas.
-- Aviso de simulação visível e ausência de números ilustrativos fixos.
+- Ausência de classificação automática de simulação e de números ilustrativos fixos.
 - Paginação correta, inclusive total de páginas e tabelas de continuação.
 - Nenhuma alteração em autorização, auditoria, hash ou contrato de download.
