@@ -13,6 +13,7 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfgen.canvas import Canvas
 from reportlab.platypus import (
     BaseDocTemplate,
+    CondPageBreak,
     Frame,
     HRFlowable,
     NextPageTemplate,
@@ -136,7 +137,7 @@ def _grafico(dados: dict, largura: float) -> Drawing:
     return desenho
 
 
-def renderizar_pdf(dados: dict) -> bytes:
+def renderizar_pdf(dados: dict, *, conservador: bool = False) -> bytes:
     saida = BytesIO()
     largura = A4[0] - 72
     estilos = {
@@ -225,8 +226,12 @@ def renderizar_pdf(dados: dict) -> bytes:
                         Cartao([[texto(dados[campo], "quantidade")], [texto(rotulo, "rotulo")]],
                                [largura_bloco], cor=ROSA, padding=6)], largura_bloco)
         blocos.append(bloco)
-    conteudo.extend([tabela_sem_padding([[blocos[0], "", blocos[1]]], [largura_bloco, 16, largura_bloco]), Spacer(1, 14),
-                     faixa("Gráfico para análise de comportamento"), Spacer(1, 10)])
+    conteudo.extend([tabela_sem_padding([[blocos[0], "", blocos[1]]], [largura_bloco, 16, largura_bloco]), Spacer(1, 14)])
+    if conservador:
+        # Preservar a ressalva na primeira página mesmo se o gráfico precisar sair.
+        conteudo.append(texto("Registros disponíveis: não comprovam histórico contínuo ou condição atual.", "nota"))
+        conteudo.append(CondPageBreak(320))
+    conteudo.extend([faixa("Gráfico para análise de comportamento"), Spacer(1, 10)])
     if dados["quantidade_leituras"]:
         grafico = coluna([indicadores(largura - 24, em_cartoes=False), Spacer(1, 8),
                           _grafico(dados, largura - 24)], largura - 24)
@@ -261,7 +266,9 @@ def renderizar_pdf(dados: dict) -> bytes:
             c = camaras[camara_id]
             linhas.append([texto(f"{c['modelo']} - {c['localizacao']}", "nota"), texto(tipo.replace("_", " "), "nota"),
                            texto(data.strftime("%d/%m/%Y %H:%M:%S"), "nota"), texto(gravidade, "nota"), texto(status, "nota")])
-        tabela = Table(linhas, colWidths=[largura * p for p in (0.28, 0.23, 0.21, 0.14, 0.14)], repeatRows=1,
+        proporcoes = (0.25, 0.21, 0.21, 0.14, 0.19) if conservador else (0.28, 0.23, 0.21, 0.14, 0.14)
+        tabela = Table(linhas, colWidths=[largura * p for p in proporcoes], repeatRows=1,
+                       splitInRow=1 if conservador else 0,
                        style=TableStyle([("BACKGROUND", (0, 0), (-1, 0), CLARO),
                                          ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F0F6FA")]),
                                          ("VALIGN", (0, 0), (-1, -1), "TOP"),

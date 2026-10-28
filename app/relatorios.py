@@ -1,10 +1,14 @@
 """Relatórios determinísticos: snapshot PostgreSQL, cálculos e auditoria."""
 
+import logging
 from contextlib import closing
 from datetime import datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
 from hashlib import sha256
+from time import perf_counter
 
+from app.erros import SaidaModeloInvalida
+from app.juiz import julgar_pdf
 from app.schemas import RelatorioRequest
 from app.tools.access import validar_acesso
 from app.tools.db import get_conn
@@ -126,6 +130,12 @@ def gerar_relatorio_pdf(usuario_id: int, filtros: RelatorioRequest) -> bytes:
     from app.pdf_relatorio import renderizar_pdf
 
     dados = consultar_dados_relatorio(usuario_id, filtros)
-    pdf = renderizar_pdf(dados)
-    registrar_relatorio(usuario_id, dados, pdf)
-    return pdf
+    for tentativa in range(2):
+        inicio = perf_counter()
+        pdf = renderizar_pdf(dados) if tentativa == 0 else renderizar_pdf(dados, conservador=True)
+        logging.getLogger(__name__).info("PDF: tentativa=%d geracao=%.3fs", tentativa + 1, perf_counter() - inicio)
+        # Falhas do provedor/formato propagam: não são corrigidas por re-renderização.
+        if julgar_pdf(dados, pdf):
+            registrar_relatorio(usuario_id, dados, pdf)
+            return pdf
+    raise SaidaModeloInvalida("Relatório reprovado após duas gerações.")

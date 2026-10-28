@@ -60,6 +60,8 @@ class AnaliseDiagnostico(BaseModel):
     perguntas: list[str] = Field(default_factory=list)
     limitacoes: list[str] = Field(default_factory=list)
     regras_explicacao: list[RegraDiagnostico] = Field(default_factory=list)
+    # Fontes consultadas deste turno, fora do JSON público da análise.
+    fontes_juiz: dict = Field(default_factory=dict, exclude=True)
 
 
 @dataclass
@@ -223,9 +225,17 @@ def validar_analise(proposta: PropostaDiagnostico, contexto: ContextoDiagnostico
         if fonte.get("evidencia_ref") not in (None, proposta.evidencia_ref):
             raise SaidaDiagnosticoInvalida("Justificativa de outra consulta.")
         analise.relatos.append(relato)
-        # Guarda conservadora sobre a fonte inteira: não aceitar citação que omita
-        # negação ou incerteza. Não é classificador semântico nem prova de veracidade.
-        texto = fonte["texto"].casefold()
+        # Verifica a oração inteira e outras observações sobre o mesmo requisito.
+        # Uma negação sobre gelo não deve invalidar um relato sobre a porta.
+        # Não analisa só a citação: isso permitiria omitir o "não" que a precede.
+        inicio = fonte["texto"].index(relato.trecho)
+        fim = inicio + len(relato.trecho)
+        partes = [
+            parte.group() for parte in re.finditer(r"[^.!?;\n]+[.!?;]?", fonte["texto"])
+            if (parte.start() < fim and parte.end() > inicio)
+            or _relato_descreve_requisito(relato.model_copy(update={"trecho": parte.group()}))
+        ]
+        texto = " ".join(partes).casefold()
         incerto = re.search(r"\b(talvez|não sei|nao sei|não há|nao ha|sem|não existe|nao existe)\b", texto)
         negacao = re.search(r"\b(não|nao)\b", texto)
         porta_nao_fecha = relato.requisito == "porta_nao_fecha" and re.search(
@@ -233,7 +243,7 @@ def validar_analise(proposta: PropostaDiagnostico, contexto: ContextoDiagnostico
         )
         pergunta_observacao = re.search(r"\b(há|ha|tem|existe)[^.!?]*\?", texto)
         comando = re.search(
-            r"\b(confirme|considere|classifique|ignore|suponha|assuma|finja)\b", texto,
+            r"\b(confirme|considere|classifique|ignore|suponha|assuma|finja)\b", fonte["texto"].casefold(),
         )
         if (relato.situacao != "afirmado" or not relato.vinculo_confirmado
                 or not relato.atualidade_confirmada or incerto or pergunta_observacao or comando
@@ -385,7 +395,10 @@ def executar_diagnostico(mensagens: list, modelo) -> AnaliseDiagnostico:
             evidencias = consultar_evidencias_diagnostico.invoke({
                 "camara_id": int(next(iter(ids))), "ultimo_alerta": True,
             })
-            return validar_analise(PropostaDiagnostico(evidencia_ref=evidencias["referencia"]), contexto)
+            analise = validar_analise(PropostaDiagnostico(evidencia_ref=evidencias["referencia"]), contexto)
+            analise.fontes_juiz = {"fontes": contexto.fontes, "evidencias": contexto.evidencias,
+                                  "regras": {k: v.model_dump() for k, v in contexto.regras.items()}}
+            return analise
         agente = criar_agente(
             model=modelo, system_prompt=DIAGNOSTICO_PROMPT, tools=TOOLS,
             response_format=ToolStrategy(PropostaDiagnostico, handle_errors=False),
@@ -409,7 +422,10 @@ def executar_diagnostico(mensagens: list, modelo) -> AnaliseDiagnostico:
             proposta = PropostaDiagnostico.model_validate(saida.get("structured_response"))
         except (ValidationError, AttributeError, TypeError) as erro:
             raise SaidaDiagnosticoInvalida("Resposta estruturada inválida.") from erro
-        return validar_analise(proposta, contexto)
+        analise = validar_analise(proposta, contexto)
+        analise.fontes_juiz = {"fontes": contexto.fontes, "evidencias": contexto.evidencias,
+                              "regras": {k: v.model_dump() for k, v in contexto.regras.items()}}
+        return analise
     finally:
         contexto_diagnostico.reset(token)
 

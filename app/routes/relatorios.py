@@ -3,7 +3,7 @@
 import logging
 
 from app.auth import obter_usuario_autenticado
-from app.erros import ServicoIndisponivel
+from app.erros import SaidaModeloInvalida, ServicoIndisponivel
 from app.relatorios import (
     DadosRelatorioInvalidos,
     FiltroRelatorioInvalido,
@@ -45,6 +45,7 @@ router = APIRouter(tags=["relatorios"], route_class=RotaRelatorio)
         409: {"description": "Dados de origem inconsistentes."},
         422: {"description": "Filtros inválidos."},
         500: {"description": "Falha de geração do PDF."},
+        502: {"description": "Relatório reprovado ou veredito inválido."},
         503: {"description": "Banco de dados indisponível."},
     },
 )
@@ -60,7 +61,11 @@ def baixar_relatorio(requisicao: RelatorioRequest) -> Response:
         raise HTTPException(422, str(erro)) from None
     except DadosRelatorioInvalidos:
         raise HTTPException(409, "Dados inconsistentes impedem a geração do relatório.") from None
-    except (PostgreSQLError, ServicoIndisponivel):
+    except SaidaModeloInvalida:
+        raise HTTPException(502, "Não foi possível validar o relatório.") from None
+    except ServicoIndisponivel:
+        raise HTTPException(503, "Validação do relatório temporariamente indisponível.") from None
+    except PostgreSQLError:
         raise HTTPException(503, "Banco de dados temporariamente indisponível.") from None
     except Exception as erro:  # noqa: BLE001 - Fronteira HTTP: não expor erros internos do renderizador.
         logger.error("Falha ao gerar relatório: %s", type(erro).__name__)

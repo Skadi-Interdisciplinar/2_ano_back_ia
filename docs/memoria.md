@@ -5,6 +5,11 @@ uma sessão ativa por usuário em `Skadi.sessoes_trimmy`; as últimas 20 mensage
 dessa sessão alimentam o contexto imediato. A coleção antiga `conversas` não é
 apagada nem migrada automaticamente.
 
+O MongoDB retorna somente as últimas 20 mensagens para o chat, sem apagar as
+anteriores. A sessão é vinculada no início do turno: pergunta e resposta são
+gravadas juntas com um único `$push/$each`. Se a sessão for encerrada durante a
+consulta, o turno não é transferido para uma sessão nova e a API retorna 409.
+
 POST `/chat/encerrar` recebe `{"token": "teste"}`. Gera um resumo com o modelo
 rápido e o indexa no Qdrant antes de encerrar a sessão. Retorna `{"resumo": "..."}`
 ou `{"resumo": null}` se não houver sessão/mensagens. A próxima mensagem cria
@@ -29,5 +34,5 @@ distribuída entre MongoDB e Qdrant. A coleção de sessões tem índice único 
 por usuário para impedir duas sessões ativas. Não há política de retenção ou
 limite de tamanho aprovado; sessões muito longas ainda exigem essa definição.
 
-A autenticação permanece mockada com usuário 2. Assim, todos os clientes de teste
+A autenticação permanece mockada com usuário 12. Assim, todos os clientes de teste
 compartilham a mesma identidade e memória até integrar a autenticação real.
