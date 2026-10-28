@@ -7,6 +7,7 @@ from copy import deepcopy
 from uuid import uuid4
 
 from app.diagnostico import SaidaDiagnosticoInvalida, obter_contexto_diagnostico
+from app.guardrail import anonimizar_texto
 from app.regras_diagnostico import recuperar_regras
 from app.tools.access import validar_acesso
 from app.tools.contexto import obter_usuario_contexto
@@ -123,12 +124,13 @@ def consultar_evidencias_diagnostico(
                     for j in justificativas:
                         ref = f"justificativa:{referencia}:{j[0]}"
                         justificativa = {
-                            "origem_ref": ref, "motivo": j[1], "descricao": j[2],
+                            "origem_ref": ref, "motivo": anonimizar_texto(j[1] or ""),
+                            "descricao": anonimizar_texto(j[2] or ""),
                             "data_hora": str(j[3]),
                         }
                         dados["justificativas"].append(justificativa)
                         contexto.fontes[ref] = {
-                            "texto": f"{j[1]}\n{j[2]}", "evidencia_ref": referencia,
+                            "texto": f"{justificativa['motivo']}\n{justificativa['descricao']}", "evidencia_ref": referencia,
                         }
     contexto.evidencias[referencia] = deepcopy(dados)
     # _camara_id/_alertas são somente backend; alerta_id é seletor interno, não resposta pública.
