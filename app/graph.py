@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import logging
 import operator
+from time import perf_counter
 from typing import Annotated, TypedDict
 
 from app.erros import SaidaModeloInvalida
@@ -10,6 +12,7 @@ from app.guardrail import anonimizar_texto, guardrail_entrada, guardrail_saida
 from app.juiz import julgar_chat
 from app.llms import codigo_erro_groq, criar_agente, obter_modelos
 from app.memory import iniciar_sessao, salvar_turno_conversa
+from app.observabilidade import abrir_turno, fechar_turno, ligar_coleta_modelos, medir_etapa
 from app.prompts import (
     DIAGNOSTICO_PROMPT,
     FAQ_PROMPT,
@@ -29,6 +32,7 @@ ROTAS_ESPECIALISTAS = (
     "diagnostico",
     "faq",
 )
+logger = logging.getLogger(__name__)
 ROTAS = frozenset((*ROTAS_ESPECIALISTAS, "orquestrador"))
 PROMPTS_POR_ROTA = {
     "faq": FAQ_PROMPT + "\n### BASE OFICIAL APROVADA\n" + BASE_FAQ,
@@ -106,6 +110,9 @@ def _rotear(estado: EstadoSkadi) -> dict:
     from langchain.agents.structured_output import StructuredOutputError, ToolStrategy
 
     _, modelo_rapido = obter_modelos()
+    # A instrumentação só é necessária após o guardrail liberar a conversa.
+    # Assim, uma recusa local não instancia clientes de IA nem tenta usar chaves.
+    ligar_coleta_modelos()
     tools = []
     if estado.get("usuario_id") is not None:
         from app.tools.memoria import TOOLS_MEMORIA
@@ -268,14 +275,22 @@ def _escolher_rota(estado: EstadoSkadi) -> str:
 def construir_fluxo():
     from langgraph.graph import END, StateGraph
 
+    def medir_no(nome: str, no):
+        def executado(estado: EstadoSkadi):
+            agente = estado.get("rota", "especialista") if nome == "especialista" else nome
+            with medir_etapa(agente):
+                return no(estado)
+
+        return executado
+
     fluxo = StateGraph(EstadoSkadi)
-    fluxo.add_node("guardrail_entrada", no_guardrail_entrada)
-    fluxo.add_node("roteador", _rotear)
+    fluxo.add_node("guardrail_entrada", medir_no("guardrail_entrada", no_guardrail_entrada))
+    fluxo.add_node("roteador", medir_no("roteador", _rotear))
     for rota in ROTAS_ESPECIALISTAS:
-        fluxo.add_node(rota, _executar_especialista)
-    fluxo.add_node("orquestrador", _orquestrar)
-    fluxo.add_node("guardrail_saida", no_guardrail_saida)
-    fluxo.add_node("juiz", no_juiz)
+        fluxo.add_node(rota, medir_no("especialista", _executar_especialista))
+    fluxo.add_node("orquestrador", medir_no("orquestrador", _orquestrar))
+    fluxo.add_node("guardrail_saida", medir_no("guardrail_saida", no_guardrail_saida))
+    fluxo.add_node("juiz", medir_no("juiz", no_juiz))
     fluxo.set_entry_point("guardrail_entrada")
     fluxo.add_conditional_edges("guardrail_entrada", decidir_pos_guardrail_entrada, {
         "roteador": "roteador", "guardrail_saida": "guardrail_saida",
@@ -293,6 +308,10 @@ FLUXO_SKADI = construir_fluxo()
 
 
 def executar_fluxo_skadi(mensagem: str, usuario_id: int | None = None) -> tuple[str, list[str]]:
+    inicio = perf_counter()
+    turno_id = abrir_turno()
+    rota = "orquestrador"
+    status = "erro"
     token_contexto = (
         definir_usuario_contexto(usuario_id) if usuario_id is not None else None
     )
@@ -311,7 +330,12 @@ def executar_fluxo_skadi(mensagem: str, usuario_id: int | None = None) -> tuple[
         })
         if usuario_id is not None and not estado.get("bloqueado"):
             salvar_turno_conversa(usuario_id, estado["sessao_id"], estado["pergunta_original"], estado["resposta"])
+        rota = estado.get("rota") or rota
+        status = "bloqueado" if estado.get("bloqueado") else "ok"
         return estado["resposta"], estado["agentes_chamados"]
     finally:
         if token_contexto is not None:
             restaurar_usuario_contexto(token_contexto)
+        fechar_turno(turno_id=turno_id, rota=rota, status=status)
+        # Apenas duração; nunca registrar pergunta, token, URI ou histórico.
+        logger.info("Fluxo Trimmy: duracao=%.3fs", perf_counter() - inicio)

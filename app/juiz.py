@@ -90,6 +90,8 @@ class Veredito(BaseModel):
 
 @lru_cache(maxsize=2)
 def _modelo_juiz(visual: bool = False):
+    from app.observabilidade import coletor
+
     if visual:
         if not config.GEMINI_API_KEY:
             raise ServicoIndisponivel("GEMINI_API_KEY não configurada.")
@@ -97,14 +99,14 @@ def _modelo_juiz(visual: bool = False):
 
         return ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0,
                                        google_api_key=config.GEMINI_API_KEY, timeout=30, max_retries=0,
-                                       )
+                                       callbacks=[coletor])
     if not config.GROQ_API_KEY:
         raise ServicoIndisponivel("GROQ_API_KEY não configurada.")
     from langchain_groq import ChatGroq
 
     return ChatGroq(model="openai/gpt-oss-120b", temperature=0,
                     groq_api_key=config.GROQ_API_KEY, timeout=30, max_retries=0,
-                    )
+                    callbacks=[coletor])
 
 
 def avaliar(fontes: dict, *, visual: bool = False, imagem: str | None = None) -> Veredito:
