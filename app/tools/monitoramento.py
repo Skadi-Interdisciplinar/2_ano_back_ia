@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from contextlib import ExitStack, closing
+from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 
 from app.config import REDIS_URL
 from app.erros import ServicoIndisponivel
+from app.guardrail import anonimizar_texto
 from app.tools.access import validar_acesso
 from app.tools.contexto import obter_usuario_contexto
 from app.tools.db import get_conn
@@ -101,7 +104,7 @@ def _selecionar_camaras(escopo, criterios: FiltrosCamaraArgs, *, cursor=None, cd
 
 def _cadastro_publico(camara: dict) -> dict:
     """IDs são dados internos, não contexto necessário ao modelo."""
-    return {campo: camara[campo] for campo in (
+    return {campo: anonimizar_texto(camara[campo]) if campo in {"modelo", "localizacao"} else camara[campo] for campo in (
         "modelo", "localizacao", "limite_minimo", "limite_maximo",
     )}
 
@@ -163,11 +166,19 @@ def consultar_temperaturas_permitidas(
     resultado = []
     for camara in camaras:
         leitura = leituras.get(str(camara["termometro"]))
+        leitura_valida = False
+        if leitura:
+            try:
+                leitura_valida = Decimal(str(leitura.get("temperatura"))).is_finite()
+                datetime.fromisoformat(leitura.get("data_hora") or "")
+            except (InvalidOperation, ValueError, TypeError):
+                leitura_valida = False
         resultado.append({
             **_cadastro_publico(camara),
-            "temperatura": leitura.get("temperatura") if leitura else None,
-            "data_hora": leitura.get("data_hora") if leitura else None,
-            "leitura_disponivel": bool(leitura and leitura.get("temperatura") is not None),
+            "temperatura": leitura.get("temperatura") if leitura_valida else None,
+            "data_hora": leitura.get("data_hora") if leitura_valida else None,
+            "leitura_disponivel": leitura_valida,
+            "leitura_invalida": bool(leitura and not leitura_valida),
         })
     return {"status": "ok", "camaras": resultado}
 
@@ -244,7 +255,7 @@ def consultar_alertas_permitidos(
 def consultar_alertas_atuais(usuario_id: int) -> list[dict]:
     """Resultado público do monitoramento, sem expor IDs internos."""
     return [
-        {campo: alerta[campo] for campo in ("camara", "gravidade", "status", "tipo", "data_hora")}
+        {campo: anonimizar_texto(alerta[campo]) for campo in ("camara", "gravidade", "status", "tipo", "data_hora")}
         for alerta in consultar_alertas_permitidos(usuario_id)
     ]
 
@@ -260,10 +271,15 @@ def consultar_temperaturas(
     )
 
 
-@tool
-def listar_camaras_responsaveis() -> list[dict]:
-    """Lista cadastro e limites das câmaras permitidas, sem depender do Redis."""
-    return [_cadastro_publico(c) for c in consultar_camaras_permitidas(obter_usuario_contexto())]
+@tool(args_schema=FiltrosCamaraArgs)
+def listar_camaras_responsaveis(
+    camara_id: int | None = None, modelo: str | None = None, localizacao: str | None = None,
+) -> list[dict]:
+    """Consulta cadastro e limites por identificação; sem filtros lista as câmaras permitidas. Não usa Redis."""
+    filtros = FiltrosCamaraArgs(camara_id=camara_id, modelo=modelo, localizacao=localizacao)
+    return [_cadastro_publico(c) for c in consultar_camaras_permitidas(
+        obter_usuario_contexto(), **filtros.model_dump(exclude_none=True),
+    )]
 
 
 @tool
