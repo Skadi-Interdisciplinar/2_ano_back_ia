@@ -182,6 +182,7 @@ def julgar_pdf(dados: dict, pdf: bytes) -> bool:
     try:
         import pypdfium2 as pdfium
         from pypdf import PdfReader
+        from pypdf.errors import PdfReadError
     except ImportError:
         raise ServicoIndisponivel("Dependências da avaliação PDF não instaladas.") from None
 
@@ -191,7 +192,7 @@ def julgar_pdf(dados: dict, pdf: bytes) -> bool:
         textos = {f"pagina:{i + 1}": p.extract_text() or "" for i, p in enumerate(paginas)}
         if not textos:
             raise ValueError("PDF sem páginas.")
-    except Exception:
+    except (OSError, TypeError, ValueError, PdfReadError):
         raise SaidaModeloInvalida("PDF não pode ser avaliado.") from None
     fontes = {"dados_snapshot": dados, "design": design, "pedido": "Relatório completo dos filtros do snapshot.", **textos}
     aprovado = avaliar(fontes).aprovado
@@ -219,6 +220,6 @@ def julgar_pdf(dados: dict, pdf: bytes) -> bool:
                 aprovado = visual.aprovado and aprovado
     except (ServicoIndisponivel, SaidaModeloInvalida):
         raise
-    except Exception:
+    except (OSError, RuntimeError, TypeError, ValueError):
         raise ServicoIndisponivel("Renderização para avaliação indisponível.") from None
     return aprovado
