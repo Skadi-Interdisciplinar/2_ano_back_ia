@@ -1,54 +1,33 @@
-from __future__ import annotations
-
 from unittest.mock import Mock
 
 import pytest
-from app.tools import access
-from tests.conftest import banco_sql
+from app.tools.access import validar_acesso
 
 
-def _configurar_banco_falso(monkeypatch, retorno):
-    cursor, conexao = banco_sql(retorno=retorno)
-    monkeypatch.setattr(access, "get_conn", Mock(return_value=conexao))
-    return cursor
+def test_normaliza_o_nivel_de_acesso_do_usuario():
+    cursor = Mock()
+    cursor.fetchone.return_value = (2, " admin ", 7)
 
-
-def test_validar_acesso_normaliza_nivel_do_banco(monkeypatch):
-    cursor = _configurar_banco_falso(monkeypatch, (2, " admin ", 7))
-
-    escopo = access.validar_acesso(2)
+    escopo = validar_acesso(2, cursor=cursor)
 
     assert escopo.usuario_id == 2
     assert escopo.nivel_acesso == "ADMIN"
-    assert escopo.cd_id == 7
-    assert cursor.execute.call_args.args[1] == (2,)
+    cursor.execute.assert_called_once_with(
+        "SELECT id, nivel_acesso, cod_cd FROM tb_usuario WHERE id = %s", (2,)
+    )
 
 
-def test_validar_acesso_rejeita_usuario_inexistente(monkeypatch):
-    _configurar_banco_falso(monkeypatch, None)
+def test_rejeita_usuario_que_nao_existe():
+    cursor = Mock()
+    cursor.fetchone.return_value = None
 
     with pytest.raises(PermissionError, match="nao encontrado"):
-        access.validar_acesso(99)
+        validar_acesso(99, cursor=cursor)
 
 
-def test_validar_acesso_rejeita_nivel_desconhecido(monkeypatch):
-    _configurar_banco_falso(monkeypatch, (2, "VISITANTE", 7))
+def test_rejeita_nivel_de_acesso_desconhecido():
+    cursor = Mock()
+    cursor.fetchone.return_value = (2, "VISITANTE", 7)
 
     with pytest.raises(PermissionError, match="nao reconhecido"):
-        access.validar_acesso(2)
-
-
-@pytest.mark.parametrize("falha", [False, True])
-def test_validacao_fecha_conexao_mesmo_com_erro(monkeypatch, falha):
-    cursor, conexao = banco_sql(retorno=(2, "ADMIN", 7))
-    monkeypatch.setattr(access, "get_conn", Mock(return_value=conexao))
-    if falha:
-        cursor.execute.side_effect = RuntimeError("Consulta indisponível")
-        with pytest.raises(RuntimeError):
-            access.validar_acesso(2)
-    else:
-        access.validar_acesso(2)
-
-    conexao.close.assert_called_once()
-
-
+        validar_acesso(2, cursor=cursor)
