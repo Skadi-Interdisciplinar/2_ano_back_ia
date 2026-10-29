@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app import config
+
 
 @dataclass(frozen=True)
 class AuthenticatedUser:
@@ -15,7 +17,7 @@ def obter_usuario_autenticado(token: str) -> AuthenticatedUser:
 
     # TODO(autenticacao-mobile): validar o token e extrair o usuario_id.
     # O token é recebido para preservar o contrato do aplicativo mobile, mas
-    # enquanto a autenticação não estiver integrada usa o usuário de teste 12
-    # (GESTOR do CD 2, conferido no banco). As permissões continuam validadas no banco.
+    # enquanto a autenticação não estiver integrada usa a identidade configurada
+    # no servidor. O padrão é 12 (GESTOR). As permissões vêm do banco.
     del token
-    return AuthenticatedUser(usuario_id=12)
+    return AuthenticatedUser(usuario_id=config.USUARIO_TESTE_ID)

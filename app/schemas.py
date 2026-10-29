@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -77,3 +77,54 @@ class EncerrarChatRequest(BaseModel):
 
 class EncerrarChatResponse(BaseModel):
     resumo: str | None = None
+
+
+class ResumoObservabilidade(BaseModel):
+    turnos: int
+    erros: int
+    indice_erros: float | None
+    latencia_media_ms: float | None
+    latencia_p95_ms: int | None
+    tokens_entrada: int
+    tokens_saida: int
+    custo_estimado_usd: float
+    custo_medio_por_turno_usd: float | None
+
+
+class LatenciaInteragente(BaseModel):
+    agente: str
+    latencia_media_ms: float | None
+    chamadas: int
+
+
+class ProjecaoSemanal(BaseModel):
+    usuarios_semanais: int
+    interacoes_por_usuario: int
+    premissa: str
+    custo_estimado_usd: float | None
+
+
+class MetricaIndisponivel(BaseModel):
+    valor_usd: float | None = None
+    valor_percentual: float | None = None
+    motivo: str
+
+
+class TurnoRecente(BaseModel):
+    data_hora: datetime
+    rota: str
+    status: str
+    latencia_total_ms: int
+    tokens_entrada: int
+    tokens_saida: int
+    custo_usd: float
+
+
+class ObservabilidadeResponse(BaseModel):
+    escopo: str
+    resumo: ResumoObservabilidade
+    latencia_interagentes: list[LatenciaInteragente]
+    projecoes_semanais: list[ProjecaoSemanal]
+    custo_por_resolucao: MetricaIndisponivel
+    roi: MetricaIndisponivel
+    turnos_recentes: list[TurnoRecente]

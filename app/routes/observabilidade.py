@@ -4,6 +4,7 @@ from typing import Annotated
 
 from app.auth import obter_usuario_autenticado
 from app.observabilidade import painel_mobile
+from app.schemas import ObservabilidadeResponse
 from app.tools.access import validar_acesso
 from fastapi import APIRouter, Header, HTTPException
 
@@ -19,7 +20,7 @@ def _token_bearer(authorization: Annotated[str | None, Header()] = None) -> str:
 
 
 @router.get(
-    "/observabilidade",
+    "/observabilidade", response_model=ObservabilidadeResponse,
     responses={
         401: {"description": "Token Bearer ausente ou inválido."},
         403: {"description": "Acesso não permitido."},

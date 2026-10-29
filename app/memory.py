@@ -25,6 +25,12 @@ def _database():
     return _client["Skadi"]
 
 
+def obter_banco_mongo():
+    """Expõe o banco já configurado sem criar um segundo cliente MongoDB."""
+
+    return _database()
+
+
 @lru_cache(maxsize=1)
 def _sessoes():
     colecao = _database().sessoes_trimmy

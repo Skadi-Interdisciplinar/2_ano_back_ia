@@ -1,17 +1,23 @@
-"""Métricas em memória do processo, expostas ao aplicativo mobile como JSON."""
+"""Métricas persistidas, agregadas e sem conteúdo de conversas para o mobile."""
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import UTC, datetime
+from functools import lru_cache
 from typing import Any
 
+from app.erros import ServicoIndisponivel
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.outputs import LLMResult
+
+logger = logging.getLogger(__name__)
 
 PRECOS_POR_MILHAO = {
     "gemini-2.5-flash": (0.30, 2.50),
@@ -21,15 +27,14 @@ PRECOS_POR_MILHAO = {
 LIMITE_TURNOS = 200
 
 _lock = threading.Lock()
-_turno_local = threading.local()
+_turno_local: ContextVar[str | None] = ContextVar("turno_observabilidade", default=None)
 _abertos: dict[str, float] = {}
-_turnos: list[dict[str, Any]] = []
 _chamadas: list[dict[str, Any]] = []
 _etapas: list[dict[str, Any]] = []
 
 
 def _turno_atual() -> str | None:
-    return getattr(_turno_local, "id", None)
+    return _turno_local.get()
 
 
 def _nome_modelo(valor: Any) -> str:
@@ -115,21 +120,42 @@ class ColetorChamadas(BaseCallbackHandler):
 coletor = ColetorChamadas()
 
 
-def ligar_coleta_modelos() -> None:
-    """Anexa o coletor aos modelos reutilizados, uma vez por instância."""
-    from app.llms import obter_modelos
+@lru_cache(maxsize=1)
+def _colecao_turnos():
+    """Coleção exclusiva de telemetria, sem mensagens, tokens ou credenciais."""
 
-    principal, reserva = obter_modelos()
-    base_principal = getattr(principal, "runnable", principal)
-    for modelo in (base_principal, reserva):
-        callbacks = list(getattr(modelo, "callbacks", None) or [])
-        if not any(isinstance(item, ColetorChamadas) for item in callbacks):
-            modelo.callbacks = [*callbacks, coletor]
+    from app.memory import obter_banco_mongo
+
+    colecao = obter_banco_mongo().observabilidade_trimmy
+    colecao.create_index("data_hora")
+    return colecao
+
+
+def _persistir_turno(turno: dict[str, Any]) -> None:
+    """Falha de telemetria não pode impedir a resposta do usuário."""
+
+    from pymongo.errors import PyMongoError
+
+    try:
+        _colecao_turnos().insert_one(turno)
+    except (PyMongoError, ServicoIndisponivel):
+        logger.warning("Observabilidade: persistência do turno indisponível")
+
+
+def _carregar_turnos() -> list[dict[str, Any]]:
+    """Lê os últimos turnos persistidos para manter métricas após reinicialização."""
+
+    from pymongo.errors import PyMongoError
+
+    try:
+        return list(_colecao_turnos().find({}).sort("data_hora", -1).limit(LIMITE_TURNOS))
+    except (PyMongoError, ServicoIndisponivel) as erro:
+        raise ServicoIndisponivel("Observabilidade temporariamente indisponível.") from erro
 
 
 def abrir_turno() -> str:
     turno_id = uuid.uuid4().hex
-    _turno_local.id = turno_id
+    _turno_local.set(turno_id)
     with _lock:
         _abertos[turno_id] = time.perf_counter()
     return turno_id
@@ -153,26 +179,28 @@ def medir_etapa(nome: str) -> Iterator[None]:
 
 
 def fechar_turno(*, turno_id: str, rota: str, status: str) -> None:
-    _turno_local.id = None
+    _turno_local.set(None)
     with _lock:
         inicio = _abertos.pop(turno_id, None)
         if inicio is None:
             return
         chamadas = [item for item in _chamadas if item["turno_id"] == turno_id]
-        _turnos.append({
+        etapas = [item for item in _etapas if item["turno_id"] == turno_id]
+        turno = {
             "id": turno_id,
-            "hora": datetime.now(UTC).isoformat(),
+            "data_hora": datetime.now(UTC),
             "rota": rota or "orquestrador",
             "status": status,
             "latencia_total_ms": round((time.perf_counter() - inicio) * 1_000),
             "tokens_entrada": sum(item["tokens_entrada"] for item in chamadas),
             "tokens_saida": sum(item["tokens_saida"] for item in chamadas),
             "custo_usd": sum(item["custo_usd"] for item in chamadas),
-        })
-        while len(_turnos) > LIMITE_TURNOS:
-            antigo = _turnos.pop(0)
-            _chamadas[:] = [item for item in _chamadas if item["turno_id"] != antigo["id"]]
-            _etapas[:] = [item for item in _etapas if item["turno_id"] != antigo["id"]]
+            "chamadas": chamadas,
+            "etapas": etapas,
+        }
+        _chamadas[:] = [item for item in _chamadas if item["turno_id"] != turno_id]
+        _etapas[:] = [item for item in _etapas if item["turno_id"] != turno_id]
+    _persistir_turno(turno)
 
 
 def _media(valores: list[float]) -> float | None:
@@ -187,11 +215,11 @@ def _p95(valores: list[int]) -> int | None:
 
 
 def painel_mobile() -> dict[str, Any]:
-    """Contrato leve para gráficos no mobile; histórico some ao reiniciar o processo."""
-    with _lock:
-        turnos = [item.copy() for item in _turnos]
-        chamadas = [item.copy() for item in _chamadas]
-        etapas = [item.copy() for item in _etapas]
+    """Contrato persistido para a tela mobile, restrito ao SUPER_ADMIN."""
+
+    turnos = list(reversed(_carregar_turnos()))
+    chamadas = [chamada for turno in turnos for chamada in turno.get("chamadas", [])]
+    etapas = [etapa for turno in turnos for etapa in turno.get("etapas", [])]
 
     latencias = [item["latencia_total_ms"] for item in turnos]
     custo_total = sum(item["custo_usd"] for item in turnos)
@@ -211,7 +239,7 @@ def painel_mobile() -> dict[str, Any]:
         }
 
     return {
-        "escopo": "Processo atual; registros são reiniciados quando a API reinicia.",
+        "escopo": "Últimos 200 turnos persistidos; não inclui conteúdo de conversas.",
         "resumo": {
             "turnos": total_turnos,
             "erros": erros,
@@ -237,7 +265,7 @@ def painel_mobile() -> dict[str, Any]:
             "motivo": "Não há benefício financeiro ou retorno aprovado para calcular ROI.",
         },
         "turnos_recentes": [
-            {chave: valor for chave, valor in turno.items() if chave != "id"}
+            {chave: valor for chave, valor in turno.items() if chave not in {"_id", "id", "chamadas", "etapas"}}
             for turno in turnos[-50:]
         ],
     }

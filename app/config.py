@@ -16,6 +16,11 @@ REDIS_URL = os.getenv("REDIS_URL")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
+# Identidade do mock local; o perfil e o escopo continuam vindo do PostgreSQL.
+USUARIO_TESTE_ID = int(os.getenv("TRIMMY_USUARIO_TESTE_ID", "12"))
+if USUARIO_TESTE_ID <= 0:
+    raise ValueError("TRIMMY_USUARIO_TESTE_ID deve ser um inteiro positivo.")
+
 # Somente a configuração vetorial pode vir do ambiente de referência.
 _assessor_env = os.getenv("ASSESSOR_ENV_FILE")
 _referencia = dotenv_values(_assessor_env) if _assessor_env else {}

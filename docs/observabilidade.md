@@ -1,0 +1,54 @@
+# Observabilidade da Trimmy
+
+`GET /observabilidade` disponibiliza os dados necessários à futura tela mobile
+de observabilidade. O endpoint exige `Authorization: Bearer <token>` e é
+restrito ao perfil `SUPER_ADMIN`.
+
+## Testar localmente
+
+Enquanto a autenticação é mockada, `TRIMMY_USUARIO_TESTE_ID` seleciona no servidor
+o usuário de teste. O padrão é `12` (GESTOR), que recebe `403` neste endpoint.
+Para testar com sucesso, configure o ID de um usuário existente com perfil
+`SUPER_ADMIN` no PostgreSQL e reinicie o Uvicorn. A configuração afeta todos os
+endpoints que usam o mock. Nenhum token enviado pelo cliente escolhe o perfil.
+
+No Swagger (`/docs`), abra `GET /observabilidade`, clique em `Try it out` e
+preencha o campo `authorization` com `Bearer teste`. Não envie corpo JSON.
+
+```powershell
+Invoke-RestMethod -Uri 'http://127.0.0.1:8000/observabilidade' -Headers @{Authorization='Bearer teste'}
+```
+
+Sem Bearer, a resposta é `401`; com usuário de outro perfil, `403`. Com
+SUPER_ADMIN e os bancos disponíveis, o retorno é `200` com as métricas.
+
+## Dados retornados
+
+- `resumo`: total de turnos, índice de erros, latência média e p95, tokens e
+  custo estimado.
+- `latencia_interagentes`: latência média e quantidade de chamadas por nó do
+  fluxo.
+- `projecoes_semanais`: estimativas para 100 e 1.000 usuários, usando uma
+  interação semanal por usuário como premissa explícita.
+- `custo_por_resolucao` e `roi`: retornam `null` acompanhado de motivo até que
+  o aplicativo forneça uma definição e confirmação de resolução, além de uma
+  referência financeira aprovada.
+- `turnos_recentes`: até 50 turnos recentes, sem conteúdo de mensagens.
+
+## Persistência e privacidade
+
+Ao terminar um turno, a API registra em `Skadi.observabilidade_trimmy` somente
+data/hora, rota, status, latências, tokens, custo estimado e nomes de modelos.
+Perguntas, respostas, token de autenticação, dados de câmaras, alertas e
+credenciais não são armazenados nessa coleção.
+
+O painel calcula os dados a partir dos últimos 200 turnos persistidos. Se o
+MongoDB estiver indisponível, o chat não deixa de responder por isso, mas o
+endpoint de observabilidade retorna indisponibilidade até a leitura voltar.
+
+## Integração futura do mobile
+
+A tela mobile deve consumir esse endpoint apenas para SUPER_ADMIN e apresentar
+os valores ausentes como “não disponível”, acompanhados do motivo retornado.
+Ela não deve tentar calcular ROI, custo por resolução ou custo estimado no
+cliente.
