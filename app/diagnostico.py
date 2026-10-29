@@ -95,6 +95,7 @@ def _relato_descreve_requisito(relato: RelatoDiagnostico) -> bool:
     # Vocabulário das observações já aprovadas, sem novos critérios operacionais.
     padroes = {
         "porta_nao_fecha": (r"\bporta\b", r"\bnao fecha\b"),
+        "porta_aberta": (r"\bporta\b", r"\b(aberta|ficou aberta|permaneceu aberta|mantida aberta)\b"),
         "vedacao_danificada": (r"\b(vedacao|borracha da porta)\b", r"\b(danificad\w*|rasgad\w*|rompid\w*)\b"),
         "produtos_mais_quentes": (r"\bprodutos\b", r"\b(entraram|carregad\w*|recebid\w*)\b", r"\b(mais quentes|aquecidos)\b"),
         "produtos_obstruem_ar": (r"\bprodutos\b", r"\b(bloque\w*|obstr\w*)\b", r"\bar\b"),
@@ -296,23 +297,21 @@ def apresentar_diagnostico(analise: AnaliseDiagnostico) -> str:
     """Orquestrador usa este texto validado, sem outra interpretação por LLM."""
     partes = []
     if analise.regras_explicacao:
-        partes.append("Posso explicar os fatores previstos na base aprovada do Skadi, sem atribuir uma causa a uma câmara específica.")
+        partes.append("Claro! Posso explicar os fatores previstos na base aprovada do Skadi, sem atribuir uma causa a uma câmara específica.")
         for regra in analise.regras_explicacao:
             partes.extend([
                 f"{regra.titulo}: {regra.hipotese}",
                 f"Condições e limitações: {regra.limitacoes}",
                 f"Orientação aprovada: {regra.recomendacao}",
             ])
-            for fonte in regra.fontes:
-                partes.append(f"Fonte: {fonte.titulo} — {fonte.secao} — {fonte.url}")
         partes.extend(analise.limitacoes)
         return "\n\n".join(partes)
     dados = analise.evidencias
     if dados.get("camara"):
         camara = dados["camara"]
-        partes.append(f"Consultei os registros da {camara['modelo']}, em {camara['localizacao']}.")
+        partes.append(f"Claro! Consultei os registros da {camara['modelo']}, em {camara['localizacao']}.")
         leitura = dados.get("leitura") or {}
-        if leitura:
+        if leitura and dados.get("comparacao") is not None:
             partes.append(
                 f"A última leitura disponível é de {leitura.get('temperatura')} °C, "
                 f"registrada em {leitura.get('data_hora')}."
@@ -355,10 +354,7 @@ def apresentar_diagnostico(analise: AnaliseDiagnostico) -> str:
             f"Hipótese condicional — {hipotese.titulo}: {hipotese.hipotese}",
             f"Recomendação: {hipotese.recomendacao}",
             f"Limitações: {hipotese.limitacoes}",
-            f"Regra: {hipotese.regra_id}, versão {hipotese.versao}.",
         ])
-        for fonte in hipotese.fontes:
-            partes.append(f"Fonte: {fonte['titulo']} — {fonte['secao']} — {fonte['url']}")
     if analise.limitacoes:
         partes.append(" ".join(analise.limitacoes))
     partes.extend(analise.perguntas)

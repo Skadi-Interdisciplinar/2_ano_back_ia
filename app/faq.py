@@ -27,5 +27,6 @@ def apresentar_faq(selecao: SelecaoFAQ) -> str:
         raise SaidaModeloInvalida("Referência de FAQ não aprovada.")
     respostas = [RESPOSTAS_FAQ[ref] for ref in dict.fromkeys(selecao.referencias)]
     if not respostas or selecao.informacao_ausente:
-        respostas.append("Não tenho informação aprovada sobre os detalhes que não constam nessas orientações.")
-    return " ".join(respostas)
+        respostas.append("No momento, não tenho informação aprovada sobre os detalhes que não constam nessas orientações.")
+    texto = " ".join(respostas)
+    return f"Claro! {texto}" if texto else texto

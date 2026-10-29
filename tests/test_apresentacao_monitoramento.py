@@ -14,6 +14,7 @@ def test_apresenta_temperatura_e_limites_consultados():
 
     resposta = apresentar_consultas([mensagem])
 
+    assert resposta.startswith("Claro!")
     assert "4.00 °C" in resposta
     assert "2.00 a 6.00 °C" in resposta
 
@@ -23,4 +24,4 @@ def test_informa_quando_nao_ha_alertas_permitidos():
 
     resposta = apresentar_consultas([mensagem])
 
-    assert "Não encontrei alertas" in resposta
+    assert "não encontrei alertas" in resposta.casefold()

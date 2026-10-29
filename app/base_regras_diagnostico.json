@@ -1,7 +1,7 @@
 [
   {
     "id": "DIAG-TEC-001",
-    "versao": "0.2",
+    "versao": "0.4",
     "status": "APROVADA",
     "ativa": true,
     "titulo": "Porta ou vedação",
@@ -9,12 +9,13 @@
     "grupos_requisitos": [
       [
         "porta_nao_fecha",
-        "vedacao_danificada"
+        "vedacao_danificada",
+        "porta_aberta"
       ]
     ],
-    "hipotese": "Entrada de ar pela porta pode contribuir para o desvio.",
+    "hipotese": "Uma porta mantida aberta pode permitir a entrada de ar do ambiente, aumentar a carga térmica e contribuir para o desvio.",
     "recomendacao": "Verificar fechamento e condição visível da vedação; encaminhar indícios de dano ao responsável técnico, sem instrução de reparo.",
-    "pergunta": "A porta fecha completamente? Há dano visível na vedação?",
+    "pergunta": "A porta ficou aberta ou demora a fechar? Há dano visível na vedação?",
     "limitacoes": "Não inferir porta aberta apenas pela temperatura; não confirmar defeito, tempo de abertura ou relação causal.",
     "fontes": [
       {
@@ -32,7 +33,7 @@
     ],
     "aprovacao": {
       "origem": "Autorização do usuário nesta conversa",
-      "data": "2026-10-11"
+      "data": "2026-10-28"
     }
   },
   {

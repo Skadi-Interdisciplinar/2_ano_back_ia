@@ -190,6 +190,31 @@ O canal definido para as notificações é push no aplicativo. Elas são destina
 aos funcionários do centro de distribuição que estão no nível de acesso
 responsável pelo alerta naquele momento, conforme o escalonamento.
 
+### FAQ-041 - Onde encontro os alertas no aplicativo?
+
+Na barra de navegação inferior do aplicativo, toque em Alertas para abrir a
+tela de alertas.
+
+### FAQ-042 - Onde encontro as câmaras no aplicativo?
+
+Na barra de navegação inferior do aplicativo, toque em Câmaras para abrir a
+tela de câmaras.
+
+### FAQ-043 - Onde fica a tela inicial?
+
+Na barra de navegação inferior do aplicativo, toque em Início para voltar à
+tela inicial.
+
+### FAQ-044 - Onde encontro a Trimmy no aplicativo?
+
+Na barra de navegação inferior do aplicativo, toque em Trimmy para abrir a
+conversa com a assistente.
+
+### FAQ-045 - Onde encontro os relatórios no aplicativo?
+
+Na barra de navegação inferior do aplicativo, toque em Relatórios para abrir a
+tela de relatórios.
+
 ## Gravidade
 
 ### FAQ-040 - Como a gravidade de um alerta é calculada?

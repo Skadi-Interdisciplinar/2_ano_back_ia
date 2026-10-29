@@ -19,15 +19,15 @@ def apresentar_consultas(mensagens: list) -> str | None:
         except (TypeError, ValueError) as erro:
             raise SaidaModeloInvalida("Resultado de consulta inválido.") from erro
         if mensagem.name == "consultar_alertas_atuais_do_usuario":
-            respostas.append("Alertas permitidos para você: " + " ".join(
+            respostas.append("Encontrei estes alertas disponíveis para você: " + " ".join(
                 f'{a["camara"]}: {a["tipo"]}, gravidade {a["gravidade"]}, '
                 f'status {a["status"]}, registrado em {a["data_hora"]}.'
                 for a in dados
-            ) if dados else "Não encontrei alertas ativos ou reconhecidos por você no seu escopo.")
+            ) if dados else "No momento, não encontrei alertas ativos ou reconhecidos por você no seu escopo.")
             continue
         camaras = dados if isinstance(dados, list) else dados["camaras"]
         if not isinstance(dados, list) and dados.get("status") == "ambigua":
-            respostas.append("Encontrei mais de uma câmara. Qual deseja consultar? " + "; ".join(
+            respostas.append("Encontrei mais de uma opção para você. Qual câmara deseja consultar? " + "; ".join(
                 f'{c["modelo"]} — {c["localizacao"]}' for c in camaras
             ) + ".")
             continue
@@ -46,4 +46,5 @@ def apresentar_consultas(mensagens: list) -> str | None:
             respostas.append(texto)
         if mensagem.name == "consultar_temperaturas" and any(c.get("leitura_disponivel") for c in camaras):
             respostas.append("Essas são as últimas leituras disponíveis, não uma confirmação da temperatura agora.")
-    return " ".join(dict.fromkeys(respostas)) or None
+    texto = " ".join(dict.fromkeys(respostas))
+    return f"Claro! {texto}" if texto else None

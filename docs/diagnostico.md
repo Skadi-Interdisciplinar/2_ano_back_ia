@@ -5,8 +5,9 @@ O diagnóstico usa RAG, não treinamento. Mantém `POST /chat` com `token` e
 
 ## Fluxo e arquivos
 
-- `app/base_regras_diagnostico.json`: oito regras aprovadas (as seis originais
-  na versão 0.2 e duas de degelo na versão 0.3);
+- `app/base_regras_diagnostico.json`: oito regras aprovadas (cinco regras
+  originais na versão 0.2, porta/vedação na versão 0.4 e duas de degelo na
+  versão 0.3);
   hipóteses, requisitos, perguntas, recomendações, limitações e fontes.
 - `app/regras_diagnostico.py`: validação da base, indexação administrativa e
   recuperação exclusiva de regras aprovadas e ativas no Qdrant.
