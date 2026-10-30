@@ -6,17 +6,18 @@ from app.auth import obter_usuario_autenticado
 from app.observabilidade import painel_mobile
 from app.schemas import ObservabilidadeResponse
 from app.tools.access import validar_acesso
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 router = APIRouter(tags=["observabilidade"])
+autenticacao_bearer = HTTPBearer(auto_error=False)
 
 
-def _token_bearer(authorization: Annotated[str | None, Header()] = None) -> str:
+def _token_bearer(authorization: Annotated[HTTPAuthorizationCredentials | None, Depends(autenticacao_bearer)] = None) -> str:
     """Extrai somente o token Bearer; evita token em URL ou corpo de GET."""
-    esquema, separador, token = (authorization or "").partition(" ")
-    if esquema.lower() != "bearer" or not separador or not token.strip():
-        raise HTTPException(status_code=401, detail="Preencha o cabeçalho authorization com Bearer seguido do token. Exemplo: Bearer teste.")
-    return token.strip()
+    if authorization is None or authorization.scheme.lower() != "bearer" or not authorization.credentials.strip():
+        raise HTTPException(status_code=401, detail="No Swagger, clique em Authorize e informe o token (exemplo: teste). Nas demais chamadas, envie Authorization: Bearer seguido do token.")
+    return authorization.credentials.strip()
 
 
 @router.get(
@@ -28,9 +29,9 @@ def _token_bearer(authorization: Annotated[str | None, Header()] = None) -> str:
     },
 )
 def consultar_observabilidade(
-    authorization: Annotated[str | None, Header()] = None,
+    token: Annotated[str, Depends(_token_bearer)],
 ) -> dict:
     """Entrega métricas agregadas após conferir a identidade do usuário."""
-    usuario = obter_usuario_autenticado(_token_bearer(authorization))
+    usuario = obter_usuario_autenticado(token)
     validar_acesso(usuario.usuario_id)
     return painel_mobile()

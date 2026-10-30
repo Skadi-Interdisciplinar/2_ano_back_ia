@@ -147,13 +147,25 @@ def test_perfis_consultam_observabilidade_sem_bloqueio_de_cargo(monkeypatch, niv
     painel = _painel_vazio()
     monkeypatch.setattr(rota_observabilidade, "painel_mobile", Mock(return_value=painel))
 
-    assert rota_observabilidade.consultar_observabilidade(authorization="Bearer teste") == painel
+    assert rota_observabilidade.consultar_observabilidade(token="teste") == painel
 
 
 def test_rota_de_observabilidade_declara_contrato_mobile():
     rota = next(route for route in rota_observabilidade.router.routes if route.path == "/observabilidade")
 
     assert rota.response_model is ObservabilidadeResponse
+
+
+def test_swagger_declara_bearer_como_autenticacao_e_nao_parametro_de_cabecalho():
+    app = FastAPI()
+    app.include_router(rota_observabilidade.router)
+
+    schema = app.openapi()
+    operacao = schema["paths"]["/observabilidade"]["get"]
+
+    assert operacao["security"] == [{"HTTPBearer": []}]
+    assert schema["components"]["securitySchemes"]["HTTPBearer"] == {"type": "http", "scheme": "bearer"}
+    assert not any(p["name"].lower() == "authorization" for p in operacao.get("parameters", []))
 
 
 def test_custo_por_resolucao_inclui_custo_dos_erros_e_roi_usa_premissas(monkeypatch):

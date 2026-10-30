@@ -11,8 +11,11 @@ o usuário de teste. O padrão é `12` (GESTOR), que pode consultar este endpoin
 É necessário um usuário existente no PostgreSQL. A configuração afeta todos os
 endpoints que usam o mock. Nenhum token enviado pelo cliente escolhe o perfil.
 
-No Swagger (`/docs`), abra `GET /observabilidade`, clique em `Try it out` e
-preencha o campo `authorization` com `Bearer teste`. Não envie corpo JSON.
+No Swagger (`/docs`), clique em `Authorize`, informe somente `teste` e confirme.
+Depois abra `GET /observabilidade`, clique em `Try it out` e `Execute`.
+O Swagger envia `Authorization: Bearer teste` automaticamente. Não envie corpo JSON.
+A autenticação usa o esquema HTTP Bearer do OpenAPI: declarar `Authorization`
+como parâmetro comum faz o Swagger ignorar esse cabeçalho reservado.
 
 ```powershell
 Invoke-RestMethod -Uri 'http://127.0.0.1:8000/observabilidade' -Headers @{Authorization='Bearer teste'}
