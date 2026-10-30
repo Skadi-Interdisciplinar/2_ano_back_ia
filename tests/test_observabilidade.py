@@ -131,7 +131,8 @@ def test_endpoint_exige_bearer_antes_de_consultar_bancos(monkeypatch):
     validar.assert_not_called()
 
 
-def test_gestor_nao_consulta_observabilidade(monkeypatch):
+@pytest.mark.parametrize("nivel", ["GESTOR", "ADMIN", "OPERADOR"])
+def test_perfis_consultam_observabilidade_sem_bloqueio_de_cargo(monkeypatch, nivel):
     monkeypatch.setattr(
         rota_observabilidade,
         "obter_usuario_autenticado",
@@ -140,11 +141,13 @@ def test_gestor_nao_consulta_observabilidade(monkeypatch):
     monkeypatch.setattr(
         rota_observabilidade,
         "validar_acesso",
-        Mock(return_value=EscopoAcesso(12, "GESTOR", 2)),
+        Mock(return_value=EscopoAcesso(12, nivel, 2)),
     )
 
-    with pytest.raises(PermissionError):
-        rota_observabilidade.consultar_observabilidade(authorization="Bearer teste")
+    painel = _painel_vazio()
+    monkeypatch.setattr(rota_observabilidade, "painel_mobile", Mock(return_value=painel))
+
+    assert rota_observabilidade.consultar_observabilidade(authorization="Bearer teste") == painel
 
 
 def test_rota_de_observabilidade_declara_contrato_mobile():

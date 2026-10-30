@@ -1,4 +1,4 @@
-"""Painel agregado de observabilidade, restrito ao SUPER_ADMIN."""
+"""Painel agregado de observabilidade para usuários autenticados."""
 
 from typing import Annotated
 
@@ -15,7 +15,7 @@ def _token_bearer(authorization: Annotated[str | None, Header()] = None) -> str:
     """Extrai somente o token Bearer; evita token em URL ou corpo de GET."""
     esquema, separador, token = (authorization or "").partition(" ")
     if esquema.lower() != "bearer" or not separador or not token.strip():
-        raise HTTPException(status_code=401, detail="Autenticação necessária.")
+        raise HTTPException(status_code=401, detail="Preencha o cabeçalho authorization com Bearer seguido do token. Exemplo: Bearer teste.")
     return token.strip()
 
 
@@ -30,9 +30,7 @@ def _token_bearer(authorization: Annotated[str | None, Header()] = None) -> str:
 def consultar_observabilidade(
     authorization: Annotated[str | None, Header()] = None,
 ) -> dict:
-    """Entrega métricas agregadas do processo atual apenas ao SUPER_ADMIN."""
+    """Entrega métricas agregadas após conferir a identidade do usuário."""
     usuario = obter_usuario_autenticado(_token_bearer(authorization))
-    escopo = validar_acesso(usuario.usuario_id)
-    if escopo.nivel_acesso != "SUPER_ADMIN":
-        raise PermissionError("Observabilidade restrita ao SUPER_ADMIN.")
+    validar_acesso(usuario.usuario_id)
     return painel_mobile()

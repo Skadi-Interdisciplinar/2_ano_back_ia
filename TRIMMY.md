@@ -20,7 +20,7 @@ autenticação mockada. Commits locais; sem push ou publicação.
 | Guardrails de entrada/saída | Implementados | Recusas determinísticas e mascaramento de padrões reconhecidos de dados sensíveis. |
 | Juiz por LLM | Implementado | Notas, schema e IDs de fontes validados. Falha nunca aprova automaticamente. |
 | Relatórios PDF | Implementados; homologação real parcial | Snapshot, cálculos, design, julgamento de todas as páginas, hash e auditoria. Cotas podem impedir download. |
-| Observabilidade persistida | Implementada | MongoDB, latências, tokens, erros, projeções para 100/1000 usuários e acesso SUPER_ADMIN. |
+| Observabilidade persistida | Implementada | MongoDB, latências, tokens, erros, projeções para 100/1000 usuários e acesso com usuário cadastrado. |
 | Custo por resolução | Implementado | Custo dos turnos / turnos concluídos e aprovados. Resolução técnica da interação, não de um alerta. |
 | ROI | Fórmula implementada; premissas reais pendentes | Economia estimada por tempo manual evitado e custo/hora configuráveis. Sem salário ou benefício inventado. |
 | Desenho da arquitetura | Documentado | Diagrama abaixo, consistente com o fluxo atual. |
@@ -29,7 +29,7 @@ autenticação mockada. Commits locais; sem push ou publicação.
 | Perguntas reais/rapidez | Em avaliação controlada | Resultados no acompanhamento. Registra-se também falha; não se considera uma pergunta não executada como aprovada. |
 | Integração mobile/backend | Pendente | Consumir contratos abaixo e encerrar sessão no aplicativo. Repositórios externos não alterados. |
 | Autenticação real | Pendente por decisão | Mock central. JWT removido conforme solicitado. Não publicar nesse modo. |
-| Observabilidade real como SUPER_ADMIN | Pendente de cadastro autorizado | Nenhum SUPER_ADMIN encontrado no banco de teste consultado. Não promover usuário automaticamente. |
+| Observabilidade sem restrição de cargo | Implementada | Todos os perfis cadastrados podem consultar, com cabeçalho Bearer. |
 | MCP/A2A | Pendente de definição | Nenhum protocolo externo implementado. Definir consumidor, necessidade e acesso antes de adicionar serviço. |
 | Retenção/tamanho de sessões | Pendente de política | Mensagens preservadas; definir retenção/rotação antes de uso prolongado. Não apagar histórico silenciosamente. |
 | Predição, reparos e ações automáticas | Fora do escopo | Predição removida. Não recriar treinamento ou tools de escrita operacional. |
@@ -64,7 +64,7 @@ flowchart TD
   API --> PDF["Snapshot e PDF"]
   PDF --> JuizPDF["Juiz textual e visual"]
   JuizPDF --> Auditoria["Hash e auditoria PostgreSQL"]
-  API --> Metricas["Metricas SUPER_ADMIN"]
+  API --> Metricas["Metricas usuario cadastrado"]
 ```
 
 ## Contratos e permissões
@@ -73,7 +73,7 @@ flowchart TD
 - `POST /chat/encerrar`: `{"token":"teste"}`; resume e indexa a sessão.
 - `POST /relatorios/pdf`: token, datas e seleção de CD/câmara. ADMIN, GESTOR e
   OPERADOR no próprio CD; SUPER_ADMIN com CD informado.
-- `GET /observabilidade`: `Authorization: Bearer teste`; somente SUPER_ADMIN.
+- `GET /observabilidade`: `Authorization: Bearer teste`; usuário cadastrado de qualquer perfil.
 
 SUPER_ADMIN consulta câmaras globalmente; os demais perfis ficam no próprio CD.
 Alertas do chat são ativos permitidos ou reconhecidos pelo próprio usuário;
@@ -98,4 +98,4 @@ de referência; não afirmam cobrança efetiva ou economia comprovada.
 
 Especialistas e juiz usam timeout de 30 segundos por chamada e zero retries
 automáticos do SDK; agentes têm até 25 passos. São limites de execução, não de
-sensores. Relatórios extensos exigem mais chamadas para avaliar todas as páginas.
+sensores. Cada geração de PDF usa uma chamada multimodal para todas as páginas.

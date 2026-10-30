@@ -2,14 +2,13 @@
 
 `GET /observabilidade` disponibiliza os dados necessários à futura tela mobile
 de observabilidade. O endpoint exige `Authorization: Bearer <token>` e é
-restrito ao perfil `SUPER_ADMIN`.
+disponível a todos os perfis com usuário cadastrado, sem restrição de cargo.
 
 ## Testar localmente
 
 Enquanto a autenticação é mockada, `TRIMMY_USUARIO_TESTE_ID` seleciona no servidor
-o usuário de teste. O padrão é `12` (GESTOR), que recebe `403` neste endpoint.
-Para testar com sucesso, configure o ID de um usuário existente com perfil
-`SUPER_ADMIN` no PostgreSQL e reinicie o Uvicorn. A configuração afeta todos os
+o usuário de teste. O padrão é `12` (GESTOR), que pode consultar este endpoint.
+É necessário um usuário existente no PostgreSQL. A configuração afeta todos os
 endpoints que usam o mock. Nenhum token enviado pelo cliente escolhe o perfil.
 
 No Swagger (`/docs`), abra `GET /observabilidade`, clique em `Try it out` e
@@ -19,8 +18,8 @@ preencha o campo `authorization` com `Bearer teste`. Não envie corpo JSON.
 Invoke-RestMethod -Uri 'http://127.0.0.1:8000/observabilidade' -Headers @{Authorization='Bearer teste'}
 ```
 
-Sem Bearer, a resposta é `401`; com usuário de outro perfil, `403`. Com
-SUPER_ADMIN e os bancos disponíveis, o retorno é `200` com as métricas.
+Sem Bearer, a resposta é `401`; usuário inexistente ou com cadastro inválido recebe
+`403`. Com usuário válido e os bancos disponíveis, o retorno é `200` com as métricas.
 
 ## Dados retornados
 
@@ -54,7 +53,7 @@ endpoint de observabilidade retorna indisponibilidade até a leitura voltar.
 
 ## Integração futura do mobile
 
-A tela mobile deve consumir esse endpoint apenas para SUPER_ADMIN e apresentar
+A tela mobile pode consumir esse endpoint com usuário cadastrado e deve apresentar
 os valores ausentes como “não disponível”, acompanhados do motivo retornado.
 Ela não deve tentar calcular ROI, custo por resolução ou custo estimado no
 cliente.
