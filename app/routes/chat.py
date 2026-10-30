@@ -12,6 +12,7 @@ router = APIRouter(tags=["trimmy"])
 @router.post(
     "/chat/encerrar", response_model=EncerrarChatResponse,
     responses={
+        401: {"description": "Token inválido, expirado ou usuário não encontrado."},
         409: {"description": "Sessão já em encerramento."},
         502: {"description": "Resumo não passou pela validação de saída."},
         503: {"description": "Infraestrutura ou provedor indisponível."},
@@ -25,6 +26,7 @@ def encerrar(requisicao: EncerrarChatRequest) -> EncerrarChatResponse:
 @router.post(
     "/chat", response_model=ChatResponse,
     responses={
+        401: {"description": "Token inválido, expirado ou usuário não encontrado."},
         403: {"description": "Acesso não permitido."},
         409: {"description": "Sessão alterada durante a consulta."},
         502: {"description": "Resposta do modelo inválida."},

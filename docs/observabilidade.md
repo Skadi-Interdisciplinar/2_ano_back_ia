@@ -6,23 +6,23 @@ disponível a todos os perfis com usuário cadastrado, sem restrição de cargo.
 
 ## Testar localmente
 
-Enquanto a autenticação é mockada, `TRIMMY_USUARIO_TESTE_ID` seleciona no servidor
-o usuário de teste. O padrão é `12` (GESTOR), que pode consultar este endpoint.
-É necessário um usuário existente no PostgreSQL. A configuração afeta todos os
-endpoints que usam o mock. Nenhum token enviado pelo cliente escolhe o perfil.
+Faça login no backend principal por `POST /auth/login` e copie o campo `token`.
+A Trimmy precisa da mesma `SECURITY_KEY` do backend e de acesso ao mesmo banco
+de usuários. A identidade vem do JWT validado e do cadastro; não há usuário fixo.
 
-No Swagger (`/docs`), clique em `Authorize`, informe somente `teste` e confirme.
+No Swagger (`/docs`), clique em `Authorize`, informe somente o JWT real e confirme.
 Depois abra `GET /observabilidade`, clique em `Try it out` e `Execute`.
-O Swagger envia `Authorization: Bearer teste` automaticamente. Não envie corpo JSON.
+O Swagger envia `Authorization: Bearer <JWT>` automaticamente. Não envie corpo JSON.
 A autenticação usa o esquema HTTP Bearer do OpenAPI: declarar `Authorization`
 como parâmetro comum faz o Swagger ignorar esse cabeçalho reservado.
 
 ```powershell
-Invoke-RestMethod -Uri 'http://127.0.0.1:8000/observabilidade' -Headers @{Authorization='Bearer teste'}
+Invoke-RestMethod -Uri 'http://127.0.0.1:8000/observabilidade' -Headers @{Authorization='Bearer JWT_DO_LOGIN'}
 ```
 
-Sem Bearer, a resposta é `401`; usuário inexistente ou com cadastro inválido recebe
-`403`. Com usuário válido e os bancos disponíveis, o retorno é `200` com as métricas.
+Sem Bearer, com token inválido/expirado ou usuário inexistente, a resposta é `401`.
+Cadastro com perfil não reconhecido recebe `403`. Com usuário válido e os bancos
+disponíveis, o retorno é `200` com as métricas.
 
 ## Dados retornados
 

@@ -98,11 +98,12 @@ Instale `pip install -r requirements.txt`; o manifesto inclui ReportLab em
 produção, além de pypdf, PDFium e Pillow usados pelo juiz. Inicie `uvicorn app.main:app --reload` e abra `/docs`.
 No aplicativo, leia a resposta como bytes/blob para o download, não como JSON.
 
-A autenticação usa o mock central de usuário 12, conferido como GESTOR do CD 2
-no banco de teste. Qualquer token não muda sua identidade; a escolha vale também
-para o chat. Omita `cd_id` ou envie 2. Se o cadastro ou perfil mudar, a validação
-do banco prevalece e poderá retornar 403. Nenhuma permissão foi alterada.
-Produção exige a autenticação real do aplicativo.
+A autenticação valida o JWT emitido pelo login do backend principal, usando a
+mesma `SECURITY_KEY`. Envie somente o JWT no campo `token`, sem prefixo Bearer.
+O username do token é resolvido no PostgreSQL; ID, perfil e CD não são aceitos
+do cliente como identidade. Token inválido ou expirado retorna 401 antes de
+consultar ou gerar o relatório. O CD vem do cadastro; SUPER_ADMIN deve escolher
+um CD explicitamente. Não existe usuário de teste fixo nem fallback de autenticação.
 
 Os testes usam mocks e PDFs em memória, sem chamadas a bancos/provedores.
 Incluem permissões, fronteiras de datas no SQL, indicadores, filtros, saída

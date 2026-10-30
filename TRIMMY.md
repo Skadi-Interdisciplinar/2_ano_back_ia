@@ -1,7 +1,7 @@
 # Trimmy: arquitetura e checklist de entrega
 
 Revisão do código e das decisões desta conversa. API local, dados de teste,
-autenticação mockada. Commits locais; sem push ou publicação.
+autenticação JWT compatível com o backend principal. Commits locais; sem push ou publicação.
 
 ## Checklist
 
@@ -28,7 +28,7 @@ autenticação mockada. Commits locais; sem push ou publicação.
 | Integrações reais | Verificação separada | PostgreSQL, Redis, MongoDB, Qdrant, Gemini e Groq; execução opt-in. Conectividade não comprova qualidade semântica. |
 | Perguntas reais/rapidez | Em avaliação controlada | Resultados no acompanhamento. Registra-se também falha; não se considera uma pergunta não executada como aprovada. |
 | Integração mobile/backend | Pendente | Consumir contratos abaixo e encerrar sessão no aplicativo. Repositórios externos não alterados. |
-| Autenticação real | Pendente por decisão | Mock central. JWT removido conforme solicitado. Não publicar nesse modo. |
+| Autenticação real | Implementada; validação com login real pendente | JWT assinado pelo backend, assinatura/expiração verificadas e username resolvido no banco. Requer a mesma SECURITY_KEY. |
 | Observabilidade sem restrição de cargo | Implementada | Todos os perfis cadastrados podem consultar, com cabeçalho Bearer. |
 | MCP/A2A | Pendente de definição | Nenhum protocolo externo implementado. Definir consumidor, necessidade e acesso antes de adicionar serviço. |
 | Retenção/tamanho de sessões | Pendente de política | Mensagens preservadas; definir retenção/rotação antes de uso prolongado. Não apagar histórico silenciosamente. |
@@ -69,20 +69,35 @@ flowchart TD
 
 ## Contratos e permissões
 
-- `POST /chat`: `{"token":"teste","mensagem":"Qual a temperatura da câmara 3?"}`.
-- `POST /chat/encerrar`: `{"token":"teste"}`; resume e indexa a sessão.
+- `POST /chat`: `{"token":"JWT_DO_LOGIN","mensagem":"Qual a temperatura da câmara 3?"}`.
+- `POST /chat/encerrar`: `{"token":"JWT_DO_LOGIN"}`; resume e indexa a sessão.
 - `POST /relatorios/pdf`: token, datas e seleção de CD/câmara. ADMIN, GESTOR e
   OPERADOR no próprio CD; SUPER_ADMIN com CD informado.
-- `GET /observabilidade`: `Authorization: Bearer teste`; usuário cadastrado de qualquer perfil.
+- `GET /observabilidade`: `Authorization: Bearer JWT_DO_LOGIN`; usuário cadastrado de qualquer perfil.
 
 SUPER_ADMIN consulta câmaras globalmente; os demais perfis ficam no próprio CD.
 Alertas do chat são ativos permitidos ou reconhecidos pelo próprio usuário;
 OPERADOR mantém o filtro de nível OPERADOR. Relatório inclui todos os status
 do CD/período autorizado. Justificativas pertencem ao alerta autorizado.
 
-`TRIMMY_USUARIO_TESTE_ID` seleciona o mock no servidor (padrão 12). Token do
-cliente não escolhe perfil. Reinicie o Uvicorn após alterar configuração.
+Não existe usuário fixo nem bypass. Configure `SECURITY_KEY` com o mesmo valor
+do backend, sem codificação Base64 adicional. O backend usa `sub=username`,
+`iat` e `exp`, assinatura HMAC em UTF-8 pelo JJWT. A Trimmy fixa HS256/HS384/HS512
+conforme os 32/48/64 bytes mínimos da chave, como o emissor, sem aceitar o
+algoritmo indicado pelo cliente como decisão de confiança. Tokens inválidos,
+expirados e de usuário excluído retornam 401; a ausência de chave válida retorna
+503. Permissões e CD continuam vindo do PostgreSQL, não de claims do token.
+Reinicie o Uvicorn após alterar configuração.
 O aplicativo deve chamar explicitamente `/chat/encerrar` para gerar o resumo.
+
+Contrato conferido em `main` dos repositórios do grupo:
+`2_ano_backend/TokenProvider.java`, `UserDetailsServiceImpl.java` e `UserController.java`.
+O login é `POST /auth/login` com `username` e `senha`; a resposta contém `token`,
+`expirationTime` e `validUntil`. O mobile em `main` ainda possui TODO de chamada
+ao login em `LoginActivity.java` e resposta simulada em `TrimmyActivity.java`.
+Esses repositórios não foram modificados. Para testar no Swagger da Trimmy,
+copie o campo `token` da resposta real do login, sem o prefixo Bearer nos corpos
+JSON; em `Authorize`, informe apenas o JWT. `teste` deixou de ser um token válido.
 
 ## Verificação e limites
 

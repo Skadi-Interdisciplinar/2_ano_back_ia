@@ -41,6 +41,7 @@ router = APIRouter(tags=["relatorios"], route_class=RotaRelatorio)
     "/relatorios/pdf", response_class=Response,
     responses={
         200: {"content": {"application/pdf": {"schema": {"type": "string", "format": "binary"}}}},
+        401: {"description": "Token inválido, expirado ou usuário não encontrado."},
         403: {"description": "Acesso não permitido."},
         404: {"description": "Seleção não encontrada no escopo permitido."},
         409: {"description": "Dados de origem inconsistentes."},
@@ -51,8 +52,8 @@ router = APIRouter(tags=["relatorios"], route_class=RotaRelatorio)
     },
 )
 def baixar_relatorio(requisicao: RelatorioRequest) -> Response:
+    usuario = obter_usuario_autenticado(requisicao.token)
     try:
-        usuario = obter_usuario_autenticado(requisicao.token)
         pdf = gerar_relatorio_pdf(usuario.usuario_id, requisicao)
     except PermissionError:
         raise HTTPException(403, "Não foi possível autorizar o relatório. Confira o cadastro do usuário e selecione somente o CD vinculado a ele.") from None

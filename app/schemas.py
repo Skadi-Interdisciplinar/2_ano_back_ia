@@ -39,8 +39,7 @@ class RelatorioRequest(BaseModel):
 class ChatRequest(BaseModel):
     """Mensagem recebida pelo endpoint de chat.
 
-    O token sera validado pela autenticacao do aplicativo quando ela estiver
-    integrada. Durante o bypass temporario, ele e recebido e nao interpretado.
+    O token é o JWT emitido pelo backend principal, validado antes do fluxo.
     """
 
     token: str = Field(min_length=1, max_length=10_000)

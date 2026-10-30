@@ -18,10 +18,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 ROI_TEMPO_MANUAL_MINUTOS = os.getenv("ROI_TEMPO_MANUAL_MINUTOS")
 ROI_CUSTO_HORA_USD = os.getenv("ROI_CUSTO_HORA_USD")
 
-# Identidade do mock local; o perfil e o escopo continuam vindo do PostgreSQL.
-USUARIO_TESTE_ID = int(os.getenv("TRIMMY_USUARIO_TESTE_ID", "12"))
-if USUARIO_TESTE_ID <= 0:
-    raise ValueError("TRIMMY_USUARIO_TESTE_ID deve ser um inteiro positivo.")
+SECURITY_KEY = os.getenv("SECURITY_KEY")
 
 # Somente a configuração vetorial pode vir do ambiente de referência.
 _assessor_env = os.getenv("ASSESSOR_ENV_FILE")
