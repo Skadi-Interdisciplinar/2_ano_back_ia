@@ -15,6 +15,7 @@ from groq import APIError as GroqAPIError
 from groq import BadRequestError
 from httpx import HTTPError
 from langchain_google_genai.chat_models import ChatGoogleGenerativeAIError
+from langgraph.errors import GraphRecursionError
 from psycopg2 import OperationalError
 from pymongo.errors import PyMongoError
 from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
@@ -69,5 +70,6 @@ for tipo in (
     ServicoIndisponivel, OperationalError, PyMongoError, RedisError,
     UnexpectedResponse, ResponseHandlingException, HTTPError, GeminiAPIError, GroqAPIError,
     ChatGoogleGenerativeAIError,
+    GraphRecursionError,
 ):
     app.add_exception_handler(tipo, servico_indisponivel)

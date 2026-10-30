@@ -67,12 +67,16 @@ def obter_modelos():
         temperature=0,
         google_api_key=GEMINI_API_KEY,
         callbacks=[coletor],
+        timeout=30,
+        max_retries=0,
     )
     groq = ChatGroq(
         model="openai/gpt-oss-20b",
         temperature=0,
         groq_api_key=GROQ_API_KEY,
         callbacks=[coletor],
+        timeout=30,
+        max_retries=0,
     )
     return gemini.with_fallbacks([groq]), groq
 
@@ -89,4 +93,4 @@ def criar_agente(model, **kwargs):
         model = model.runnable
     middleware.append(corrigir_chamada_tools)
     kwargs["middleware"] = middleware
-    return create_agent(model=model, **kwargs)
+    return create_agent(model=model, **kwargs).with_config({"recursion_limit": 25})

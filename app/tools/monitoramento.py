@@ -191,7 +191,7 @@ def consultar_alertas_permitidos(
     escopo = validar_acesso(usuario_id)
     filtros = [
         """
-        (a.status = %s OR (a.status = %s AND EXISTS (
+        (UPPER(a.status) = %s OR (UPPER(a.status) = %s AND EXISTS (
             SELECT 1
             FROM tb_atendimento atendimento
             WHERE atendimento.cod_alerta = a.id
@@ -207,7 +207,7 @@ def consultar_alertas_permitidos(
         filtros.append("camara.cod_cd = %s")
         parametros.append(escopo.cd_id)
     elif escopo.nivel_acesso == "OPERADOR" and escopo.cd_id is not None:
-        filtros.extend(["camara.cod_cd = %s", "a.nivel_atual = %s"])
+        filtros.extend(["camara.cod_cd = %s", "UPPER(a.nivel_atual) = %s"])
         parametros.extend([escopo.cd_id, "OPERADOR"])
     else:
         raise PermissionError("Usuário sem escopo de consulta de alertas.")

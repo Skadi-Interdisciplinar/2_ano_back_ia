@@ -6,7 +6,7 @@ from app.faq import SelecaoFAQ
 from app.juiz import INDISPONIVEL, RECUSA
 from app.schemas import DecisaoRota
 from langchain.tools import tool
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 
 def test_guardrail_encaminha_mensagem_segura_ao_roteador(monkeypatch):
@@ -241,3 +241,46 @@ def test_grafo_salva_so_a_recusa_entregue_apos_o_juiz(monkeypatch):
     assert resposta == RECUSA
     assert agentes[-1] == "juiz"
     salvar.assert_called_once_with(12, "sessao-1", "Qual a temperatura?", RECUSA)
+
+
+def test_identificacao_explicita_nao_recebe_filtros_inventados_pelo_modelo():
+    @tool
+    def consultar_temperaturas(camara_id: int) -> dict:
+        """Consulta a identificação autorizada."""
+        assert camara_id == 3
+        return {"status": "ok", "camaras": []}
+
+    modelo = Mock()
+
+    resultado = graph._consultar_monitoramento_uma_vez(
+        modelo, [HumanMessage(content="Qual a temperatura da câmara 3 e os limites?")],
+        [consultar_temperaturas],
+    )
+
+    assert resultado[0].name == "consultar_temperaturas"
+    modelo.bind_tools.assert_not_called()
+
+
+def test_consulte_repete_so_a_consulta_explicita_da_conversa():
+    estado = {"pergunta_original": "Consulte.", "historico": [
+        {"remetente": "usuario", "conteudo": "Qual é o limite mínimo da câmara 3?"},
+        {"remetente": "assistente", "conteudo": "Posso consultar o cadastro."},
+    ]}
+
+    mensagens = graph._mensagens_da_conversa(estado)
+
+    assert graph._rotear(estado)["rota"] == "monitoramento"
+    assert "limite mínimo da câmara 3" in mensagens[-1].content
+    assert estado["pergunta_original"] == "Consulte."
+
+
+def test_predicao_removida_nao_reutiliza_temperatura_antiga(monkeypatch):
+    modelo = Mock()
+    monkeypatch.setattr(graph, "obter_modelos", modelo)
+
+    resultado = graph._orquestrar({"pergunta_original": "Faça uma predição para a câmara 3.",
+                                  "respostas_agentes": [], "historico": []})
+
+    assert "não está disponível" in resultado["resposta"]
+    assert "°C" not in resultado["resposta"]
+    modelo.assert_not_called()

@@ -1,6 +1,6 @@
 import json
 
-from app.apresentacao_monitoramento import apresentar_consultas
+from app.apresentacao_monitoramento import apresentar_consultas, resumir_alertas
 from langchain_core.messages import ToolMessage
 
 
@@ -25,3 +25,19 @@ def test_informa_quando_nao_ha_alertas_permitidos():
     resposta = apresentar_consultas([mensagem])
 
     assert "não encontrei alertas" in resposta.casefold()
+
+
+def test_resumo_agrupa_sem_perder_alertas_ou_trocar_gravidade():
+    alertas = [
+        {"camara": "Carnes", "tipo": "temperatura", "gravidade": "urgente", "status": "ativo", "data_hora": "2026-10-29 10:00:00"},
+        {"camara": "Carnes", "tipo": "temperatura", "gravidade": "urgente", "status": "ativo", "data_hora": "2026-10-29 11:00:00"},
+        {"camara": "Carnes", "tipo": "temperatura", "gravidade": "crítica", "status": "reconhecido", "data_hora": "2026-10-29 12:00:00"},
+    ]
+
+    grupos = resumir_alertas(alertas)
+
+    assert sum(grupo["quantidade"] for grupo in grupos) == 3
+    assert grupos[0]["gravidade"] == "urgente"
+    assert grupos[0]["primeiro_horario"] == "2026-10-29 10:00:00"
+    assert grupos[0]["ultimo_horario"] == "2026-10-29 11:00:00"
+    assert grupos[1]["gravidade"] == "crítica"

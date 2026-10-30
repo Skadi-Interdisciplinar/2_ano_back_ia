@@ -19,6 +19,8 @@ def test_cria_modelos_e_reutiliza_o_cache(monkeypatch):
     assert primeiro is segundo
     gemini.assert_called_once()
     groq.assert_called_once()
+    assert gemini.call_args.kwargs["timeout"] == 30
+    assert groq.call_args.kwargs["max_retries"] == 0
     llms.obter_modelos.cache_clear()
 
 

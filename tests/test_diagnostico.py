@@ -1,4 +1,8 @@
+from unittest.mock import Mock
+
+import httpx
 import pytest
+from app import diagnostico
 from app.diagnostico import (
     AnaliseDiagnostico,
     ContextoDiagnostico,
@@ -9,6 +13,9 @@ from app.diagnostico import (
     validar_analise,
 )
 from app.regras_diagnostico import carregar_regras
+from app.tools.access import EscopoAcesso
+from groq import BadRequestError
+from langchain_core.messages import HumanMessage
 
 
 def test_apresenta_limite_quando_a_leitura_esta_dentro_da_faixa():
@@ -102,3 +109,44 @@ def test_leitura_invalida_nao_e_apresentada_como_temperatura(temperatura):
 def test_rejeita_evidencia_inventada_pelo_modelo():
     with pytest.raises(SaidaDiagnosticoInvalida):
         validar_analise(PropostaDiagnostico(evidencia_ref="inventada"), ContextoDiagnostico(12))
+
+
+def test_corrige_so_o_formato_sem_repetir_tools_consultadas(monkeypatch):
+    regra = carregar_regras()["DIAG-TEC-001"]
+    erro = BadRequestError("Teste", response=httpx.Response(400, request=httpx.Request("POST", "https://exemplo.test")),
+                           body={"error": {"code": "tool_use_failed"}})
+
+    def consultar_e_falhar(_):
+        contexto = diagnostico.contexto_diagnostico.get()
+        contexto.regras_consultadas = True
+        contexto.regras[regra.id] = regra
+        raise erro
+
+    agente = Mock()
+    agente.invoke.side_effect = consultar_e_falhar
+    modelo = Mock()
+    modelo.with_structured_output.return_value.invoke.return_value = PropostaDiagnostico(regras_explicacao=[regra.id])
+    monkeypatch.setattr(diagnostico, "obter_usuario_contexto", Mock(return_value=12))
+    monkeypatch.setattr("app.tools.access.validar_acesso", Mock(return_value=EscopoAcesso(12, "GESTOR", 2)))
+    monkeypatch.setattr("app.llms.criar_agente", Mock(return_value=agente))
+
+    analise = diagnostico.executar_diagnostico([HumanMessage(content="Por que a porta aberta interfere na temperatura?")], modelo)
+
+    assert [r.id for r in analise.regras_explicacao] == [regra.id]
+    agente.invoke.assert_called_once()
+    modelo.with_structured_output.return_value.invoke.assert_called_once()
+
+
+@pytest.mark.parametrize(("regra_id", "pede_esclarecimento"), [("DIAG-TEC-001", False), ("DIAG-TEC-006", True)])
+def test_abaixo_do_minimo_nao_usa_pergunta_de_regra_exclusiva_para_aquecimento(regra_id, pede_esclarecimento):
+    regra = carregar_regras()[regra_id]
+    contexto = ContextoDiagnostico(12, regras={regra.id: regra})
+    contexto.evidencias["consulta-1"] = {
+        "status": "ok", "camara": {"limite_minimo": "2", "limite_maximo": "6"},
+        "leitura": {"temperatura": "0", "data_hora": "2026-10-30T10:00:00-03:00"},
+    }
+
+    analise = validar_analise(PropostaDiagnostico(evidencia_ref="consulta-1", hipoteses=[regra.id]), contexto)
+
+    assert analise.hipoteses == []
+    assert bool(analise.perguntas) is pede_esclarecimento
