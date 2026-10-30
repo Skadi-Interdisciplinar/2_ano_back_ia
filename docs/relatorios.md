@@ -18,8 +18,9 @@ A antiga rota conversacional
 }
 ```
 
-GESTOR pode omitir `cd_id`: o cadastro determina seu CD. Se enviado, precisa
-ser o mesmo. SUPER_ADMIN precisa escolher um CD; ADMIN e OPERADOR são bloqueados.
+ADMIN, GESTOR e OPERADOR podem omitir `cd_id`: o cadastro determina seu CD. Se enviado,
+precisa ser o mesmo. SUPER_ADMIN precisa escolher um CD. Não há bloqueio por cargo
+na geração; o acesso permanece limitado às câmaras do escopo autorizado.
 `camara_id: null` seleciona todas as câmaras desse CD. Uma identificação inválida
 não amplia o filtro. O corpo não aceita usuário, permissões ou dados calculados.
 

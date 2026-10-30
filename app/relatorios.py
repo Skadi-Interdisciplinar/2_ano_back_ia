@@ -39,10 +39,10 @@ def _cd_permitido(escopo, cd_id: int | None) -> int:
         if cd_id is None:
             raise FiltroRelatorioInvalido("Informe o CD para gerar o relatório.")
         return cd_id
-    if escopo.nivel_acesso != "GESTOR" or escopo.cd_id is None:
-        raise PermissionError("Perfil sem acesso aos relatórios.")
+    if escopo.cd_id is None:
+        raise PermissionError("Seu usuário não possui um centro de distribuição vinculado para gerar relatórios.")
     if cd_id is not None and cd_id != escopo.cd_id:
-        raise PermissionError("CD não permitido.")
+        raise PermissionError("Você só pode gerar relatórios do centro de distribuição vinculado ao seu usuário.")
     return escopo.cd_id
 
 

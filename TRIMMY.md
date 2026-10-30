@@ -71,8 +71,8 @@ flowchart TD
 
 - `POST /chat`: `{"token":"teste","mensagem":"Qual a temperatura da câmara 3?"}`.
 - `POST /chat/encerrar`: `{"token":"teste"}`; resume e indexa a sessão.
-- `POST /relatorios/pdf`: token, datas e seleção de CD/câmara. GESTOR no próprio
-  CD ou SUPER_ADMIN com CD informado; ADMIN/OPERADOR não geram PDF.
+- `POST /relatorios/pdf`: token, datas e seleção de CD/câmara. ADMIN, GESTOR e
+  OPERADOR no próprio CD; SUPER_ADMIN com CD informado.
 - `GET /observabilidade`: `Authorization: Bearer teste`; somente SUPER_ADMIN.
 
 SUPER_ADMIN consulta câmaras globalmente; os demais perfis ficam no próprio CD.

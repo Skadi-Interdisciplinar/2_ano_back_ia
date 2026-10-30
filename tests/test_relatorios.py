@@ -52,10 +52,15 @@ def test_registra_hash_e_download_do_relatorio(monkeypatch):
     conexao.commit.assert_called_once()
 
 
-@pytest.mark.parametrize("nivel", ["ADMIN", "OPERADOR"])
-def test_perfis_sem_permissao_nao_geram_relatorios(nivel):
+@pytest.mark.parametrize("nivel", ["ADMIN", "OPERADOR", "GESTOR"])
+def test_perfis_podem_gerar_relatorio_do_proprio_cd(nivel):
+    assert _cd_permitido(EscopoAcesso(12, nivel, 2), None) == 2
+
+
+@pytest.mark.parametrize("nivel", ["ADMIN", "OPERADOR", "GESTOR"])
+def test_perfis_nao_podem_gerar_relatorio_de_outro_cd(nivel):
     with pytest.raises(PermissionError):
-        _cd_permitido(EscopoAcesso(12, nivel, 2), 2)
+        _cd_permitido(EscopoAcesso(12, nivel, 2), 3)
 
 
 def test_gestor_nao_pode_selecionar_outro_cd():

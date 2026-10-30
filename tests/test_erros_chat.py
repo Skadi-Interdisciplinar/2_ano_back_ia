@@ -14,4 +14,5 @@ def test_chat_oculta_detalhe_quando_o_servico_esta_indisponivel(monkeypatch):
     resposta = TestClient(app).post("/chat", json={"token": "teste", "mensagem": "oi"})
 
     assert resposta.status_code == 503
-    assert resposta.json() == {"detail": "Serviço temporariamente indisponível."}
+    assert "serviço necessário está indisponível" in resposta.json()["detail"]
+    assert "detalhe interno" not in resposta.text

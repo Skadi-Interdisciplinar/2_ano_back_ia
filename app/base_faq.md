@@ -88,9 +88,8 @@ feita pelo chat e depende da integração desse botão com o serviço de relató
 
 ### FAQ-019 - Quem pode gerar relatórios?
 
-Na implementação atual, GESTOR pode gerar relatórios do próprio centro de
-distribuição, e SUPER_ADMIN pode selecionar um centro de distribuição. ADMIN e
-OPERADOR não têm acesso à geração de relatórios.
+Na implementação atual, ADMIN, GESTOR e OPERADOR podem gerar relatórios do próprio
+centro de distribuição, e SUPER_ADMIN pode selecionar um centro de distribuição.
 
 ### FAQ-020 - O que aparece no relatório?
 
