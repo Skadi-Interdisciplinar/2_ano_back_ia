@@ -45,6 +45,18 @@ Sem Bearer, a resposta é `401`; usuário inexistente ou com cadastro inválido 
 
 ## Persistência e privacidade
 
+### Cenário acadêmico de ROI aprovado para os testes
+
+Em 30/10/2026, o usuário autorizou definir as premissas do cenário. O `.env`
+local foi configurado com `ROI_TEMPO_MANUAL_MINUTOS=5` e `ROI_CUSTO_HORA_USD=5`.
+São hipóteses ilustrativas, não tempos medidos nem remuneração real da equipe.
+Os cinco minutos representam a consulta manual de câmaras, leituras, limites e
+alertas que a interação pode reunir; o custo de US$ 5 por hora serve somente
+como parâmetro de comparação. O benefício simulado é de US$ 0,4167 por resolução
+técnica. O código não transforma essas hipóteses em padrão obrigatório.
+Para uso real, substituir por medição de tempo e custo aprovados pelo projeto.
+Com custo estimado zero, o ROI percentual permanece indisponível: não é infinito.
+
 Ao terminar um turno, a API registra em `Skadi.observabilidade_trimmy` somente
 data/hora, rota, status, latências, tokens, custo estimado e nomes de modelos.
 Perguntas, respostas, token de autenticação, dados de câmaras, alertas e
