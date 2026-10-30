@@ -9,7 +9,14 @@ from fastapi import APIRouter
 router = APIRouter(tags=["trimmy"])
 
 
-@router.post("/chat/encerrar", response_model=EncerrarChatResponse)
+@router.post(
+    "/chat/encerrar", response_model=EncerrarChatResponse,
+    responses={
+        409: {"description": "Sessão já em encerramento."},
+        502: {"description": "Resumo não passou pela validação de saída."},
+        503: {"description": "Infraestrutura ou provedor indisponível."},
+    },
+)
 def encerrar(requisicao: EncerrarChatRequest) -> EncerrarChatResponse:
     usuario = obter_usuario_autenticado(requisicao.token)
     return EncerrarChatResponse(resumo=encerrar_sessao(usuario.usuario_id))
@@ -19,6 +26,7 @@ def encerrar(requisicao: EncerrarChatRequest) -> EncerrarChatResponse:
     "/chat", response_model=ChatResponse,
     responses={
         403: {"description": "Acesso não permitido."},
+        409: {"description": "Sessão alterada durante a consulta."},
         502: {"description": "Resposta do modelo inválida."},
         503: {"description": "Infraestrutura ou provedor indisponível."},
     },

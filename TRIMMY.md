@@ -1,100 +1,101 @@
-# Arquitetura de Inteligência Artificial
+# Trimmy: arquitetura e checklist de entrega
 
-A arquitetura de Inteligência Artificial do sistema é composta por um conjunto de agentes especializados, responsáveis por diferentes etapas do processo de monitoramento e gerenciamento dos frigoríficos. A divisão das responsabilidades permite que cada agente execute uma função específica, enquanto o **Agente Orquestrador** coordena o fluxo de informações entre eles.
+Revisão do código e das decisões desta conversa. API local, dados de teste,
+autenticação mockada. Commits locais; sem push ou publicação.
 
-A comunicação entre os agentes ocorre de acordo com a necessidade identificada a partir da solicitação do usuário. Dessa forma, os agentes podem atuar de maneira integrada para realizar atividades de monitoramento, diagnóstico, geração de relatórios e interação com o usuário.
+## Checklist
 
-## 1. Agente Orquestrador
+| Demanda | Situação | Evidência e limite |
+| --- | --- | --- |
+| API FastAPI | Implementada | `app/main.py`, quatro endpoints e schemas Pydantic. |
+| Pelo menos cinco agentes | Implementada | Roteador, monitoramento, diagnóstico, FAQ, orquestrador e juiz: seis papéis. Memória é infraestrutura/tool. |
+| LangChain e LangGraph | Implementados | Modelos reutilizados, tools por domínio e grafo compilado uma vez. |
+| Conversas e sessões | Implementadas | MongoDB, uma sessão ativa por usuário, contexto das últimas 20 mensagens e persistência após validação. |
+| Memória de longo prazo | Implementada | Resumo ao encerrar sessão, Qdrant e até três resumos do próprio usuário. |
+| Monitoramento | Implementado | Cadastro, limites, uma/todas as câmaras, últimas leituras e alertas permitidos. Última leitura não confirma condição atual. |
+| Diagnóstico com RAG | Implementado | Oito regras aprovadas, requisitos, fontes e referências conferidos no backend. Sem confirmação de defeitos. |
+| Fonte externa | Implementada | Fontes técnicas oficiais documentadas nas regras aprovadas. URLs não são buscadas durante o chat. |
+| FAQ | Implementada | Somente textos da base aprovada; detalhes ausentes não são inventados. |
+| Orquestração | Implementada | Roteador escolhe domínio; orquestrador apresenta o resultado. Sem tools no orquestrador. |
+| Guardrails de entrada/saída | Implementados | Recusas determinísticas e mascaramento de padrões reconhecidos de dados sensíveis. |
+| Juiz por LLM | Implementado | Notas, schema e IDs de fontes validados. Falha nunca aprova automaticamente. |
+| Relatórios PDF | Implementados; homologação real parcial | Snapshot, cálculos, design, julgamento de todas as páginas, hash e auditoria. Cotas podem impedir download. |
+| Observabilidade persistida | Implementada | MongoDB, latências, tokens, erros, projeções para 100/1000 usuários e acesso SUPER_ADMIN. |
+| Custo por resolução | Implementado | Custo dos turnos / turnos concluídos e aprovados. Resolução técnica da interação, não de um alerta. |
+| ROI | Fórmula implementada; premissas reais pendentes | Economia estimada por tempo manual evitado e custo/hora configuráveis. Sem salário ou benefício inventado. |
+| Desenho da arquitetura | Documentado | Diagrama abaixo, consistente com o fluxo atual. |
+| Testes unitários | Implementados e ampliados | Mock/MagicMock, preparação, execução e asserts diretos. Sem serviços reais na suíte unitária. |
+| Integrações reais | Verificação separada | PostgreSQL, Redis, MongoDB, Qdrant, Gemini e Groq; execução opt-in. Conectividade não comprova qualidade semântica. |
+| Perguntas reais/rapidez | Em avaliação controlada | Resultados no acompanhamento. Registra-se também falha; não se considera uma pergunta não executada como aprovada. |
+| Integração mobile/backend | Pendente | Consumir contratos abaixo e encerrar sessão no aplicativo. Repositórios externos não alterados. |
+| Autenticação real | Pendente por decisão | Mock central. JWT removido conforme solicitado. Não publicar nesse modo. |
+| Observabilidade real como SUPER_ADMIN | Pendente de cadastro autorizado | Nenhum SUPER_ADMIN encontrado no banco de teste consultado. Não promover usuário automaticamente. |
+| MCP/A2A | Pendente de definição | Nenhum protocolo externo implementado. Definir consumidor, necessidade e acesso antes de adicionar serviço. |
+| Retenção/tamanho de sessões | Pendente de política | Mensagens preservadas; definir retenção/rotação antes de uso prolongado. Não apagar histórico silenciosamente. |
+| Predição, reparos e ações automáticas | Fora do escopo | Predição removida. Não recriar treinamento ou tools de escrita operacional. |
 
-O Agente Orquestrador é responsável pelo gerenciamento do fluxo de execução dos demais agentes. Sua principal função é receber uma solicitação ou ocorrência, determinar quais agentes devem participar do processamento e estabelecer a ordem em que serão acionados.
+## Estrutura e padrão do Assessor
 
-**Responsabilidades:**
+São preservados `main.py`, `routes/`, `schemas.py`, `graph.py`, `prompts.py`,
+`llms.py`, `memory.py`, `vectorstore.py` e `tools/`. Tools usam `@tool`, Pydantic,
+lista `TOOLS` e PostgreSQL por `get_conn()`. Não são reutilizadas regras financeiras.
+Identidade e acesso vêm do backend. Apresentação determinística evita uma geração
+extra para reescrever temperaturas, status e hipóteses já validados.
 
-* Interpretar a solicitação recebida;
-* Identificar os agentes necessários para o processamento;
-* Coordenar a comunicação entre os agentes;
-* Organizar a sequência de execução das tarefas;
-* Consolidar as informações retornadas pelos agentes.
+```mermaid
+flowchart TD
+  Cliente["Mobile ou Swagger"] --> API["FastAPI e identidade interna"]
+  API --> Entrada["Guardrail de entrada"]
+  Entrada --> Roteador["Roteador"]
+  Roteador --> Monitoramento["Monitoramento"]
+  Roteador --> Diagnostico["Diagnostico"]
+  Roteador --> FAQ["FAQ aprovada"]
+  Roteador --> Orquestrador["Orquestrador"]
+  Monitoramento --> Orquestrador
+  Diagnostico --> Orquestrador
+  FAQ --> Orquestrador
+  Orquestrador --> Saida["Guardrail de saida"]
+  Saida --> Juiz["Juiz"]
+  Juiz --> Persistencia["MongoDB e resposta"]
+  Monitoramento --> Dados["PostgreSQL e Redis"]
+  Diagnostico --> Dados
+  Diagnostico --> Regras["Qdrant tecnico"]
+  Roteador --> Memoria["Resumos do usuario no Qdrant"]
+  API --> PDF["Snapshot e PDF"]
+  PDF --> JuizPDF["Juiz textual e visual"]
+  JuizPDF --> Auditoria["Hash e auditoria PostgreSQL"]
+  API --> Metricas["Metricas SUPER_ADMIN"]
+```
 
-**Entrada:** solicitação do usuário ou informações provenientes de outros agentes.
+## Contratos e permissões
 
-**Saída:** direcionamento das tarefas e consolidação das informações necessárias para a resposta.
+- `POST /chat`: `{"token":"teste","mensagem":"Qual a temperatura da câmara 3?"}`.
+- `POST /chat/encerrar`: `{"token":"teste"}`; resume e indexa a sessão.
+- `POST /relatorios/pdf`: token, datas e seleção de CD/câmara. GESTOR no próprio
+  CD ou SUPER_ADMIN com CD informado; ADMIN/OPERADOR não geram PDF.
+- `GET /observabilidade`: `Authorization: Bearer teste`; somente SUPER_ADMIN.
 
-**Tools** 
+SUPER_ADMIN consulta câmaras globalmente; os demais perfis ficam no próprio CD.
+Alertas do chat são ativos permitidos ou reconhecidos pelo próprio usuário;
+OPERADOR mantém o filtro de nível OPERADOR. Relatório inclui todos os status
+do CD/período autorizado. Justificativas pertencem ao alerta autorizado.
 
-## 2. Agente de Monitoramento
+`TRIMMY_USUARIO_TESTE_ID` seleciona o mock no servidor (padrão 12). Token do
+cliente não escolhe perfil. Reinicie o Uvicorn após alterar configuração.
+O aplicativo deve chamar explicitamente `/chat/encerrar` para gerar o resumo.
 
-O Agente de Monitoramento é responsável pelo acompanhamento das condições de temperatura dos frigoríficos. Para isso, realiza consultas à API responsável pelo fornecimento das leituras de temperatura e compara os valores obtidos com os limites configurados para cada equipamento.
+## Verificação e limites
 
-Quando identifica uma temperatura fora dos parâmetros estabelecidos, o agente registra a ocorrência e encaminha as informações para o processamento dos demais agentes.
+```powershell
+python -m pytest tests -m "not integration" -q
+ruff check .
+```
 
-**Responsabilidades:**
+Integrações reais são opt-in por `SKADI_RUN_INTEGRATION_TESTS=true`.
+ROI usa `ROI_TEMPO_MANUAL_MINUTOS` e `ROI_CUSTO_HORA_USD`, sem valores padrão.
+As projeções consideram uma interação semanal por usuário e preços estimados
+de referência; não afirmam cobrança efetiva ou economia comprovada.
 
-* Consultar os dados de temperatura;
-* Monitorar os frigoríficos em tempo real;
-* Comparar as leituras com os limites configurados;
-* Identificar temperaturas fora do padrão;
-* Encaminhar ocorrências para o Agente Orquestrador.
-
-**Entrada:** dados de temperatura provenientes da API e parâmetros configurados para os frigoríficos.
-
-**Saída:** leituras processadas e identificação de possíveis ocorrências relacionadas à temperatura.
-
-
-## 3. Agente de Diagnóstico
-
-O Agente de Diagnóstico é responsável pela análise das ocorrências identificadas durante o monitoramento.
-A partir dessas informações, realiza uma análise das possíveis causas associadas ao problema identificado.
-
-Entre as possíveis causas analisadas estão falhas no compressor, abertura da porta, problemas no sensor de temperatura e excesso de carga no frigorífico.
-
-**Responsabilidades:**
-
-* Analisar ocorrências identificadas pelo monitoramento;
-* Relacionar os dados disponíveis a possíveis causas;
-* Sugerir hipóteses para a origem do problema;
-* Encaminhar o diagnóstico para o Agente Orquestrador.
-
-**Entrada:** dados de monitoramento e informações do frigorífico.
-
-**Saída:** possíveis causas associadas à ocorrência identificada.
-
-## 4. Serviço de relatórios PDF (fora do chat)
-
-O botão do mobile chama `POST /relatorios/pdf` com token, CD, câmara (ou todas)
-e datas inicial/final. Não é um agente do grafo e não utiliza LLM ou RAG.
-GESTOR acessa o próprio CD; SUPER_ADMIN seleciona um CD. ADMIN e OPERADOR não
-podem gerar relatórios. As estatísticas são calculadas com as leituras do período,
-e o histórico de alertas inclui todos os status.
-
-O PDF é entregue diretamente após registrar metadados, hash e disponibilização
-no PostgreSQL. Não há armazenamento permanente do arquivo, assinatura digital
-ou reabertura posterior. O contrato completo está em `docs/relatorios.md`.
-
-## 5. Agente Assistente
-
-O Agente Assistente é responsável pela interação entre o sistema e o usuário. Sua função é interpretar solicitações realizadas em linguagem natural e, quando necessário, acionar o Agente Orquestrador para obter informações dos demais componentes da arquitetura.
-
-Após o processamento, o agente apresenta os resultados de forma clara e objetiva, adaptando as informações técnicas para uma linguagem adequada ao usuário.
-
-**Responsabilidades:**
-
-* Receber solicitações em linguagem natural;
-* Interpretar a intenção do usuário;
-* Solicitar informações aos demais agentes quando necessário;
-* Organizar os resultados obtidos;
-* Apresentar as informações de forma clara e contextualizada.
-
-**Entrada:** solicitação realizada pelo usuário.
-
-**Saída:** resposta contextualizada com base nas informações obtidas pelo sistema.
-
-## 6. Fluxo de Comunicação entre os Agentes
-
-O fluxo de comunicação tem como elemento central o **Agente Orquestrador**, responsável por direcionar as solicitações e ocorrências para os agentes especializados.
-
-Em uma consulta sobre temperatura fora do padrão, o roteador encaminha pedidos de leitura e alertas ao **Agente de Monitoramento**, ou pedidos de análise de causas ao **Agente de Diagnóstico**. O **Agente Orquestrador** apresenta o resultado ao usuário.
-
-Quando o usuário solicita relatórios ou estatísticas no chat, recebe orientação para selecionar os filtros e usar o botão de PDF do aplicativo. Esse botão chama o serviço de relatórios diretamente, sem passar pelo grafo conversacional.
-
-Dessa forma, a arquitetura permite a especialização das tarefas, mantendo a coordenação centralizada do fluxo de informações e possibilitando que os resultados de diferentes agentes sejam combinados para atender às necessidades do sistema e do usuário.
+Especialistas e juiz usam timeout de 30 segundos por chamada e zero retries
+automáticos do SDK; agentes têm até 25 passos. São limites de execução, não de
+sensores. Relatórios extensos exigem mais chamadas para avaliar todas as páginas.
