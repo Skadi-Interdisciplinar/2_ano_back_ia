@@ -110,16 +110,24 @@ def consultar_dados_relatorio(usuario_id: int, filtros: RelatorioRequest) -> dic
 
 def registrar_relatorio(usuario_id: int, dados: dict, pdf: bytes) -> None:
     """Registra disponibilização, não comprova recebimento ou salvamento no mobile."""
+    from io import BytesIO
+
+    from pypdf import PdfReader
+
+    conteudo = "\n\n".join(pagina.extract_text() or "" for pagina in PdfReader(BytesIO(pdf)).pages)
+    if not conteudo.strip():
+        raise DadosRelatorioInvalidos("O PDF aprovado não contém texto extraível para registro.")
     with closing(get_conn()) as conexao:
         try:
             with conexao.cursor() as cursor:
                 # A renderização não mantém transação aberta; reconferir o acesso.
                 _cd_permitido(validar_acesso(usuario_id, cursor=cursor), dados["cd_id"])
+                cursor.execute("SELECT set_config('app.usuario_atual', %s, true)", (str(usuario_id),))
                 cursor.execute(
                     "INSERT INTO tb_relatorio "
-                    "(cod_usuario_gerador, periodo_inicio, periodo_fim, hash_conteudo, status) "
-                    "VALUES (%s, %s, %s, %s, %s) RETURNING id",
-                    (usuario_id, dados["data_inicial"], dados["data_final"], sha256(pdf).hexdigest(), "GERADO"),
+                    "(cod_usuario_gerador, periodo_inicio, periodo_fim, hash_conteudo, status, conteudo) "
+                    "VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+                    (usuario_id, dados["data_inicial"], dados["data_final"], sha256(pdf).hexdigest(), "GERADO", conteudo),
                 )
                 relatorio_id = cursor.fetchone()[0]
                 cursor.execute(

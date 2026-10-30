@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 from hashlib import sha256
+from io import BytesIO
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -14,6 +15,17 @@ from app.relatorios import (
 )
 from app.schemas import RelatorioRequest
 from app.tools.access import EscopoAcesso
+from reportlab.pdfgen import canvas
+
+
+def _pdf_de_teste():
+    arquivo = BytesIO()
+    documento = canvas.Canvas(arquivo)
+    documento.drawString(40, 700, "Resumo do periodo")
+    documento.showPage()
+    documento.drawString(40, 700, "Detalhes dos alertas")
+    documento.save()
+    return arquivo.getvalue()
 
 
 def test_gestor_usa_apenas_o_proprio_cd():
@@ -43,12 +55,17 @@ def test_registra_hash_e_download_do_relatorio(monkeypatch):
     cursor.fetchone.side_effect = [(12, "GESTOR", 2), (99,)]
     monkeypatch.setattr("app.relatorios.get_conn", Mock(return_value=conexao))
 
-    registrar_relatorio(12, {"cd_id": 2, "data_inicial": "2026-10-01", "data_final": "2026-10-10"}, b"%PDF")
+    pdf = _pdf_de_teste()
+    registrar_relatorio(12, {"cd_id": 2, "data_inicial": "2026-10-01", "data_final": "2026-10-10"}, pdf)
 
-    assert cursor.execute.call_count == 3
-    assert cursor.execute.call_args_list[1].args[1][3] == sha256(b"%PDF").hexdigest()
-    assert cursor.execute.call_args_list[1].args[1][4] == "GERADO"
-    assert cursor.execute.call_args_list[2].args[1] == (99, 12, "BAIXOU")
+    assert cursor.execute.call_count == 4
+    assert cursor.execute.call_args_list[1].args == ("SELECT set_config('app.usuario_atual', %s, true)", ("12",))
+    registro = cursor.execute.call_args_list[2].args[1]
+    assert registro[3] == sha256(pdf).hexdigest()
+    assert registro[4] == "GERADO"
+    assert "Resumo do periodo" in registro[5]
+    assert "Detalhes dos alertas" in registro[5]
+    assert cursor.execute.call_args_list[3].args[1] == (99, 12, "BAIXOU")
     conexao.commit.assert_called_once()
 
 
@@ -109,7 +126,7 @@ def test_falha_no_registro_faz_rollback(monkeypatch):
     monkeypatch.setattr(relatorios, "validar_acesso", Mock(return_value=EscopoAcesso(12, "GESTOR", 2)))
 
     with pytest.raises(RuntimeError):
-        registrar_relatorio(12, {"cd_id": 2, "data_inicial": "2026-10-28", "data_final": "2026-10-29"}, b"pdf")
+        registrar_relatorio(12, {"cd_id": 2, "data_inicial": "2026-10-28", "data_final": "2026-10-29"}, _pdf_de_teste())
 
     conexao.rollback.assert_called_once()
     conexao.commit.assert_not_called()

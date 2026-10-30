@@ -67,16 +67,21 @@ Não houve mudança nos cálculos, autorização ou registro transacional.
 ## Entrega e auditoria
 
 Depois de renderizar, o serviço reconfere o perfil/CD e registra em uma única
-transação `tb_relatorio` com usuário, datas, SHA-256 dos bytes e status `GERADO`,
+transação `tb_relatorio` com usuário, datas, SHA-256 dos bytes, texto extraído de
+todas as páginas do PDF aprovado no campo `conteudo` e status `GERADO`,
 e `tb_log_acesso_relatorio` com ação `BAIXOU`. O status persistido é `GERADO`.
 As constraints implantadas foram conferidas nesta revisão e aceitam esses
-valores em minúsculas. Não são executadas migrations nem alteradas constraints.
+valores em maiúsculas no banco `skadi`. A identidade é definida com
+`set_config('app.usuario_atual', ..., true)` na mesma transação para o trigger
+de auditoria; não vem do texto gerado pelo modelo. Não são executadas migrations
+nem alteradas constraints. PDF sem texto extraível não é registrado.
 Falha causa rollback e nenhum PDF é entregue. Essa operação não modifica alertas
-ou leituras. `baixou` registra disponibilização pela API, não recebimento no celular.
+ou leituras. `BAIXOU` registra disponibilização pela API, não recebimento no celular.
 Uma desconexão ou falha de rede depois do commit pode deixar o registro sem que
 o cliente receba o arquivo. Não há transação distribuída com o dispositivo.
 
-Cada chamada gera outro relatório. Não existe cópia persistente do arquivo ou
+Cada chamada gera outro relatório. O conteúdo textual fica persistido conforme
+aprovação do usuário em 30/10/2026. Não existe cópia persistente do arquivo PDF ou
 endpoint para recuperar o mesmo PDF; os metadados atuais não guardam CD/câmara
 nem permitem reproduzir todos os filtros. Não foram criadas tabelas ou migrations.
 
