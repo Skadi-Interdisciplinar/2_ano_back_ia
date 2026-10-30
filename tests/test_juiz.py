@@ -81,7 +81,7 @@ def test_julga_pdf_com_extracao_e_renderizacao_local(monkeypatch):
     documento.save()
 
     def avaliar(fontes, *, visual=False, imagem=None):
-        criterios = ("visual",) if visual else juiz.CRITERIOS
+        criterios = (*juiz.CRITERIOS, "visual") if visual else juiz.CRITERIOS
         assert imagem is not None if visual else imagem is None
         return juiz.Veredito(criterios=[
             juiz.AvaliacaoCriterio(
@@ -89,7 +89,7 @@ def test_julga_pdf_com_extracao_e_renderizacao_local(monkeypatch):
                 aplicavel=True,
                 nota=5,
                 justificativa="Conforme o conteúdo fornecido.",
-                referencias=["design"],
+                referencias=["design", "pagina:1", "pagina:2"],
             )
             for criterio in criterios
         ])
@@ -101,13 +101,13 @@ def test_julga_pdf_com_extracao_e_renderizacao_local(monkeypatch):
     dados = {"cd_nome": "Teste", "leituras": [(1, "4.00")], "alertas": [alerta], "total_alertas": 1}
 
     assert juiz.julgar_pdf(dados, arquivo.getvalue()) is True
-    assert mock_avaliar.call_count == 4
-    fontes_primeira_pagina = mock_avaliar.call_args_list[0].args[0]
-    fontes_segunda_pagina = mock_avaliar.call_args_list[2].args[0]
-    assert "leituras" not in fontes_primeira_pagina["dados_snapshot"]
-    assert fontes_primeira_pagina["dados_snapshot"]["total_alertas"] == 1
-    assert fontes_primeira_pagina["dados_snapshot"]["alertas_presentes_na_pagina"] == []
-    assert fontes_segunda_pagina["dados_snapshot"]["alertas_presentes_na_pagina"] == [alerta]
+    mock_avaliar.assert_called_once()
+    fontes = mock_avaliar.call_args.args[0]
+    assert "leituras" not in fontes["dados_snapshot"]
+    assert fontes["dados_snapshot"]["total_alertas"] == 1
+    assert fontes["dados_snapshot"]["alertas"] == [alerta]
+    assert fontes["pagina:1"] and fontes["pagina:2"]
+    assert len(mock_avaliar.call_args.kwargs["imagem"]) == 2
     assert dados["alertas"] == [alerta]
 
 
@@ -127,6 +127,29 @@ def test_reprova_pdf_quando_alerta_do_snapshot_nao_aparece(monkeypatch):
 
     assert juiz.julgar_pdf({"alertas": [alerta]}, arquivo.getvalue()) is False
     avaliar.assert_not_called()
+
+
+@pytest.mark.parametrize("referencias", [["pagina:1"], ["pagina:1", "pagina:2"]])
+def test_veredito_do_pdf_precisa_cobrir_todas_as_paginas(monkeypatch, referencias):
+    bruto = _veredito(5).model_dump()
+    for criterio in bruto["criterios"]:
+        criterio["referencias"] = ["dados_snapshot"]
+    bruto["criterios"].append({
+        "criterio": "visual", "aplicavel": True, "nota": 5,
+        "justificativa": "Páginas conferidas.", "referencias": referencias,
+    })
+    modelo = Mock()
+    modelo.with_structured_output.return_value.invoke.return_value = bruto
+    monkeypatch.setattr(juiz, "_modelo_juiz", Mock(return_value=modelo))
+    fontes = {"dados_snapshot": {}, "pagina:1": "Texto 1", "pagina:2": "Texto 2", "paginacao": {"total": 2}}
+
+    if len(referencias) == 1:
+        with pytest.raises(SaidaModeloInvalida):
+            juiz.avaliar(fontes, visual=True, imagem=["imagem1", "imagem2"])
+    else:
+        assert juiz.avaliar(fontes, visual=True, imagem=["imagem1", "imagem2"]).aprovado
+        mensagens = modelo.with_structured_output.return_value.invoke.call_args.args[0]
+        assert len(mensagens[1].content) == 3
 
 
 @pytest.mark.parametrize("nota", [0, 6, True, "5"])
