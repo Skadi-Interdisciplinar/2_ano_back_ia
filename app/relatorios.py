@@ -119,13 +119,13 @@ def registrar_relatorio(usuario_id: int, dados: dict, pdf: bytes) -> None:
                     "INSERT INTO tb_relatorio "
                     "(cod_usuario_gerador, periodo_inicio, periodo_fim, hash_conteudo, status) "
                     "VALUES (%s, %s, %s, %s, %s) RETURNING id",
-                    (usuario_id, dados["data_inicial"], dados["data_final"], sha256(pdf).hexdigest(), "gerado"),
+                    (usuario_id, dados["data_inicial"], dados["data_final"], sha256(pdf).hexdigest(), "GERADO"),
                 )
                 relatorio_id = cursor.fetchone()[0]
                 cursor.execute(
                     "INSERT INTO tb_log_acesso_relatorio (cod_relatorio, cod_usuario, acao) "
                     "VALUES (%s, %s, %s)",
-                    (relatorio_id, usuario_id, "baixou"),
+                    (relatorio_id, usuario_id, "BAIXOU"),
                 )
             conexao.commit()
         except Exception:

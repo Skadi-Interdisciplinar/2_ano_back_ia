@@ -47,8 +47,8 @@ def test_registra_hash_e_download_do_relatorio(monkeypatch):
 
     assert cursor.execute.call_count == 3
     assert cursor.execute.call_args_list[1].args[1][3] == sha256(b"%PDF").hexdigest()
-    assert cursor.execute.call_args_list[1].args[1][4] == "gerado"
-    assert cursor.execute.call_args_list[2].args[1] == (99, 12, "baixou")
+    assert cursor.execute.call_args_list[1].args[1][4] == "GERADO"
+    assert cursor.execute.call_args_list[2].args[1] == (99, 12, "BAIXOU")
     conexao.commit.assert_called_once()
 
 

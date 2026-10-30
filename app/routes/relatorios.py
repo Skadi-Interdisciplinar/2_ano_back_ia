@@ -16,6 +16,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 from psycopg2 import Error as PostgreSQLError
+from psycopg2 import IntegrityError
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,8 @@ def baixar_relatorio(requisicao: RelatorioRequest) -> Response:
         raise HTTPException(502, "O relatório não passou pela conferência de conteúdo e apresentação ou o juiz devolveu uma avaliação inválida. O arquivo não foi disponibilizado.") from None
     except ServicoIndisponivel:
         raise HTTPException(503, "O serviço que confere o relatório está indisponível. Isso pode ocorrer por limite de uso do provedor ou falha de conexão. Aguarde e tente novamente; o PDF ainda não foi disponibilizado.") from None
+    except IntegrityError:
+        raise HTTPException(409, "O banco recusou o registro do relatório por um campo obrigatório ou uma restrição de dados. A integração precisa ser ajustada ao schema do banco antes de disponibilizar o PDF.") from None
     except PostgreSQLError:
         raise HTTPException(503, "Não foi possível consultar ou registrar o relatório no PostgreSQL. Confira a conexão com o banco e tente novamente.") from None
     except Exception as erro:  # noqa: BLE001 - Fronteira HTTP: não expor erros internos do renderizador.

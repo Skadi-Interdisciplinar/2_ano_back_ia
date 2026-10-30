@@ -67,8 +67,8 @@ Não houve mudança nos cálculos, autorização ou registro transacional.
 ## Entrega e auditoria
 
 Depois de renderizar, o serviço reconfere o perfil/CD e registra em uma única
-transação `tb_relatorio` com usuário, datas, SHA-256 dos bytes e status `gerado`,
-e `tb_log_acesso_relatorio` com ação `baixou`. O status persistido é `gerado`.
+transação `tb_relatorio` com usuário, datas, SHA-256 dos bytes e status `GERADO`,
+e `tb_log_acesso_relatorio` com ação `BAIXOU`. O status persistido é `GERADO`.
 As constraints implantadas foram conferidas nesta revisão e aceitam esses
 valores em minúsculas. Não são executadas migrations nem alteradas constraints.
 Falha causa rollback e nenhum PDF é entregue. Essa operação não modifica alertas
