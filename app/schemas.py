@@ -82,6 +82,7 @@ class EncerrarChatResponse(BaseModel):
 class ResumoObservabilidade(BaseModel):
     turnos: int
     erros: int
+    resolucoes_tecnicas: int = 0
     indice_erros: float | None
     latencia_media_ms: float | None
     latencia_p95_ms: int | None
@@ -104,7 +105,7 @@ class ProjecaoSemanal(BaseModel):
     custo_estimado_usd: float | None
 
 
-class MetricaIndisponivel(BaseModel):
+class MetricaFinanceira(BaseModel):
     valor_usd: float | None = None
     valor_percentual: float | None = None
     motivo: str
@@ -125,6 +126,6 @@ class ObservabilidadeResponse(BaseModel):
     resumo: ResumoObservabilidade
     latencia_interagentes: list[LatenciaInteragente]
     projecoes_semanais: list[ProjecaoSemanal]
-    custo_por_resolucao: MetricaIndisponivel
-    roi: MetricaIndisponivel
+    custo_por_resolucao: MetricaFinanceira
+    roi: MetricaFinanceira
     turnos_recentes: list[TurnoRecente]

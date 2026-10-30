@@ -151,3 +151,27 @@ def test_rota_de_observabilidade_declara_contrato_mobile():
     rota = next(route for route in rota_observabilidade.router.routes if route.path == "/observabilidade")
 
     assert rota.response_model is ObservabilidadeResponse
+
+
+def test_custo_por_resolucao_inclui_custo_dos_erros_e_roi_usa_premissas(monkeypatch):
+    turnos = [{"status": status, "latencia_total_ms": 100, "custo_usd": custo,
+               "data_hora": "2026-10-30T10:00:00+00:00", "rota": "faq",
+               "tokens_entrada": 0, "tokens_saida": 0} for status, custo in (("ok", 1.0), ("erro", 3.0))]
+    monkeypatch.setattr(observabilidade, "_carregar_turnos", Mock(return_value=turnos))
+    monkeypatch.setattr(observabilidade.config, "ROI_TEMPO_MANUAL_MINUTOS", "6")
+    monkeypatch.setattr(observabilidade.config, "ROI_CUSTO_HORA_USD", "20")
+
+    painel = observabilidade.painel_mobile()
+
+    assert painel["resumo"]["resolucoes_tecnicas"] == 1
+    assert painel["custo_por_resolucao"]["valor_usd"] == 4.0
+    assert painel["roi"]["valor_percentual"] == -50.0
+
+
+@pytest.mark.parametrize("valor", [None, "NaN", "Infinity", "-1", "inválido"])
+def test_roi_sem_premissas_validas_nao_inventa_beneficio(monkeypatch, valor):
+    monkeypatch.setattr(observabilidade, "_carregar_turnos", Mock(return_value=[]))
+    monkeypatch.setattr(observabilidade.config, "ROI_TEMPO_MANUAL_MINUTOS", valor)
+    monkeypatch.setattr(observabilidade.config, "ROI_CUSTO_HORA_USD", "20")
+
+    assert observabilidade.painel_mobile()["roi"]["valor_percentual"] is None

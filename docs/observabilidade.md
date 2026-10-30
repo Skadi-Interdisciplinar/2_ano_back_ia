@@ -30,9 +30,15 @@ SUPER_ADMIN e os bancos disponíveis, o retorno é `200` com as métricas.
   fluxo.
 - `projecoes_semanais`: estimativas para 100 e 1.000 usuários, usando uma
   interação semanal por usuário como premissa explícita.
-- `custo_por_resolucao` e `roi`: retornam `null` acompanhado de motivo até que
-  o aplicativo forneça uma definição e confirmação de resolução, além de uma
-  referência financeira aprovada.
+- `custo_por_resolucao`: custo estimado dos turnos dividido pela quantidade de
+  turnos concluídos e aprovados pelo juiz (`resumo.resolucoes_tecnicas`). Uma
+  resolução técnica de interação não comprova resolução de um alerta/defeito.
+- `roi`: `(benefício estimado - custo estimado) / custo estimado * 100`.
+  Benefício = resoluções técnicas × minutos manuais evitados / 60 × custo/hora USD.
+  A definição foi delegada pelo usuário; as premissas devem ser configuradas em
+  `ROI_TEMPO_MANUAL_MINUTOS` e `ROI_CUSTO_HORA_USD`, sem valores padrão. Sem
+  premissas válidas ou custo positivo, retorna `null` com motivo. Não representa
+  economia comprovada, faturamento nem cobrança real da conta gratuita.
 - `turnos_recentes`: até 50 turnos recentes, sem conteúdo de mensagens.
 
 ## Persistência e privacidade
@@ -52,3 +58,7 @@ A tela mobile deve consumir esse endpoint apenas para SUPER_ADMIN e apresentar
 os valores ausentes como “não disponível”, acompanhados do motivo retornado.
 Ela não deve tentar calcular ROI, custo por resolução ou custo estimado no
 cliente.
+
+O contexto da telemetria usa ContextVar para acompanhar as threads do grafo.
+Falha do juiz conta como erro, sua reprovação como bloqueio; não entram como
+resolução técnica. A cópia redundante de turnos em memória foi removida.

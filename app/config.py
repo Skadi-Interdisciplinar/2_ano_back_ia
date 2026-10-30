@@ -15,6 +15,8 @@ MONGODB_URI = os.getenv("MONGODB_URI")
 REDIS_URL = os.getenv("REDIS_URL")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+ROI_TEMPO_MANUAL_MINUTOS = os.getenv("ROI_TEMPO_MANUAL_MINUTOS")
+ROI_CUSTO_HORA_USD = os.getenv("ROI_CUSTO_HORA_USD")
 
 # Identidade do mock local; o perfil e o escopo continuam vindo do PostgreSQL.
 USUARIO_TESTE_ID = int(os.getenv("TRIMMY_USUARIO_TESTE_ID", "12"))

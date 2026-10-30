@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import threading
 import time
 import uuid
@@ -13,6 +14,7 @@ from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Any
 
+from app import config
 from app.erros import ServicoIndisponivel
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.outputs import LLMResult
@@ -225,10 +227,28 @@ def painel_mobile() -> dict[str, Any]:
     custo_total = sum(item["custo_usd"] for item in turnos)
     total_turnos = len(turnos)
     erros = sum(item["status"] == "erro" for item in turnos)
+    resolucoes = sum(item["status"] == "ok" for item in turnos)
     custo_medio = (custo_total / total_turnos) if total_turnos else None
     por_agente: dict[str, list[int]] = {}
     for etapa in etapas:
         por_agente.setdefault(etapa["agente"], []).append(etapa["latencia_ms"])
+    roi = None
+    motivo_roi = "Configure tempo manual evitado em minutos e custo por hora em USD para estimar o benefício."
+    try:
+        minutos = float(config.ROI_TEMPO_MANUAL_MINUTOS)
+        custo_hora = float(config.ROI_CUSTO_HORA_USD)
+        if not all(math.isfinite(v) and v >= 0 for v in (minutos, custo_hora)):
+            raise ValueError
+        if custo_total > 0:
+            beneficio = resolucoes * minutos / 60 * custo_hora
+            roi = round((beneficio - custo_total) / custo_total * 100, 2)
+            motivo_roi = ("Estimativa: benefício = resoluções técnicas × minutos manuais evitados / 60 × custo/hora USD; "
+                          "ROI = (benefício - custo estimado dos modelos) / custo estimado dos modelos × 100. "
+                          "As premissas configuradas não comprovam economia real.")
+        else:
+            motivo_roi = "Sem custo estimado positivo, não é possível calcular o percentual de ROI."
+    except (TypeError, ValueError):
+        pass
 
     def cenario(usuarios: int) -> dict[str, Any]:
         return {
@@ -243,6 +263,7 @@ def painel_mobile() -> dict[str, Any]:
         "resumo": {
             "turnos": total_turnos,
             "erros": erros,
+            "resolucoes_tecnicas": resolucoes,
             "indice_erros": round(erros / total_turnos, 4) if total_turnos else None,
             "latencia_media_ms": _media(latencias),
             "latencia_p95_ms": _p95(latencias),
@@ -257,12 +278,13 @@ def painel_mobile() -> dict[str, Any]:
         ],
         "projecoes_semanais": [cenario(100), cenario(1_000)],
         "custo_por_resolucao": {
-            "valor_usd": None,
-            "motivo": "Não há confirmação de resolução fornecida pelo aplicativo.",
+            "valor_usd": round(custo_total / resolucoes, 6) if resolucoes else None,
+            "motivo": "Custo estimado de todos os turnos dividido pelos concluídos e aprovados pelo juiz. "
+                      "Resolução técnica de uma interação; não comprova resolução de alertas ou falhas.",
         },
         "roi": {
-            "valor_percentual": None,
-            "motivo": "Não há benefício financeiro ou retorno aprovado para calcular ROI.",
+            "valor_percentual": roi,
+            "motivo": motivo_roi,
         },
         "turnos_recentes": [
             {chave: valor for chave, valor in turno.items() if chave not in {"_id", "id", "chamadas", "etapas"}}
