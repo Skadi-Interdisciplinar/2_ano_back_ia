@@ -42,7 +42,8 @@ correta: a qualidade semântica precisa de avaliação real separada.
 
 O juiz recebe fontes do turno: consultas e filtros do monitoramento; dados,
 relatos e regras consultadas do diagnóstico; base aprovada e seleção da FAQ;
-histórico e memória explicitamente não verificados. A candidata não é evidência
+memória efetivamente recuperada e referências conversacionais identificadas
+como históricas. O histórico inteiro não é enviado. A candidata não é evidência
 de si mesma. Mascaramento de padrões reconhecidos precede a avaliação textual.
 PDFs e suas imagens contêm os dados autorizados do relatório; não são anônimos.
 
@@ -59,9 +60,12 @@ de sessão não passa pelo juiz nesta entrega.
 ## PDF
 
 Extração por pypdf; renderização local com PDFium e Pillow. O texto de todas as
-páginas e o snapshot completo são avaliados pelo GPT-OSS. Cada página renderizada
-é avaliada pelo Gemini com sua identificação e `design.md`. Não há amostragem
-ou truncamento silencioso. São uma chamada textual e N chamadas visuais por PDF;
+páginas é avaliado por página com os indicadores do snapshot e os alertas cujos
+horários constam nela. Séries brutas não são duplicadas no prompt. Ausência de
+horário de um alerta no documento provoca reprovação antes do LLM. Essa checagem
+não comprova sozinha que cada campo ou gráfico está correto.
+Cada página renderizada é avaliada pelo Gemini com `design.md`. Não há amostragem.
+São N chamadas textuais e N visuais por PDF;
 relatórios extensos podem esgotar cotas e aumentar a latência.
 
 Uma reprovação válida permite uma segunda renderização do mesmo snapshot, com
@@ -72,12 +76,12 @@ inteiro é avaliado de novo. A recuperação não promete corrigir qualquer defe
 
 Reprovação persistente ou veredito inválido retorna JSON 502. Indisponibilidade
 retorna JSON 503. Não gerar nova versão para contornar falha do provedor. Não
-registrar `GERADO`/`BAIXOU` nem entregar arquivo sem aprovação integral. O PDF
+registrar `gerado`/`baixou` nem entregar arquivo sem aprovação integral. O PDF
 aprovado é o mesmo usado no SHA-256 e na auditoria atômica existente.
 
 ## Testes e avaliação
 
-Testes básicos em `tests/test_juiz.py` e `tests/test_juiz_pdf.py`: rubricas, limites,
+Testes básicos em `tests/test_juiz.py` e `tests/test_relatorios.py`: rubricas, limites,
 referências, máscaras, persistência, recuperação e avaliação de todas as páginas.
 Regressões existentes mantêm isolamento por mocks. Renderização/extração usa PDFs
 locais; isso não comprova que um LLM identifica alucinações ou defeitos visuais.

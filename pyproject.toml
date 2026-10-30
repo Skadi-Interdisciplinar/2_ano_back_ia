@@ -30,6 +30,9 @@ dependencies = [
   "google-genai",
   "groq",
   "reportlab>=4",
+  "pypdf>=5",
+  "pypdfium2>=4",
+  "Pillow>=10",
 ]
 
 [project.optional-dependencies]
@@ -38,7 +41,6 @@ dev = [
   "pytest-asyncio>=0.24",
   "ruff>=0.7",
   "build>=1.2",
-  "pypdf>=5",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -53,9 +55,13 @@ include = [
   "/pytest.ini",
   "/pyproject.toml",
   "/LICENSE",
+  "/design.md",
 ]
 
 [tool.ruff]
 target-version = "py311"
 line-length = 100
 src = ["app", "tests"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"design.md" = "app/design.md"

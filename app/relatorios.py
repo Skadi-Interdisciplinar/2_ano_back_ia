@@ -6,6 +6,7 @@ from datetime import datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
 from hashlib import sha256
 from time import perf_counter
+from unicodedata import normalize
 
 from app.erros import SaidaModeloInvalida
 from app.juiz import julgar_pdf
@@ -25,6 +26,12 @@ class SelecaoRelatorioNaoEncontrada(LookupError):
 
 class DadosRelatorioInvalidos(ValueError):
     pass
+
+
+def _gravidade_critica(gravidade: object) -> bool:
+    """Compara a gravidade para o indicador sem alterar o valor exibido."""
+    texto = normalize("NFD", str(gravidade)).encode("ascii", "ignore").decode().upper()
+    return texto == "CRITICA"
 
 
 def _cd_permitido(escopo, cd_id: int | None) -> int:
@@ -97,7 +104,7 @@ def consultar_dados_relatorio(usuario_id: int, filtros: RelatorioRequest) -> dic
         "primeira_leitura": min(l[2] for l in leituras) if leituras else None,
         "ultima_leitura": max(l[2] for l in leituras) if leituras else None,
         "total_alertas": len(alertas),
-        "ocorrencias_criticas": sum(a[4] == "CRITICA" for a in alertas),
+        "ocorrencias_criticas": sum(_gravidade_critica(a[4]) for a in alertas),
     }
 
 
@@ -112,13 +119,13 @@ def registrar_relatorio(usuario_id: int, dados: dict, pdf: bytes) -> None:
                     "INSERT INTO tb_relatorio "
                     "(cod_usuario_gerador, periodo_inicio, periodo_fim, hash_conteudo, status) "
                     "VALUES (%s, %s, %s, %s, %s) RETURNING id",
-                    (usuario_id, dados["data_inicial"], dados["data_final"], sha256(pdf).hexdigest(), "GERADO"),
+                    (usuario_id, dados["data_inicial"], dados["data_final"], sha256(pdf).hexdigest(), "gerado"),
                 )
                 relatorio_id = cursor.fetchone()[0]
                 cursor.execute(
                     "INSERT INTO tb_log_acesso_relatorio (cod_relatorio, cod_usuario, acao) "
                     "VALUES (%s, %s, %s)",
-                    (relatorio_id, usuario_id, "BAIXOU"),
+                    (relatorio_id, usuario_id, "baixou"),
                 )
             conexao.commit()
         except Exception:

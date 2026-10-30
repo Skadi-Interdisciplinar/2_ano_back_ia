@@ -1,7 +1,9 @@
 # Relatórios PDF por botão do mobile
 
 `POST /relatorios/pdf` é um serviço determinístico, não um agente do chat.
-Não usa LLM, RAG, Redis, MongoDB ou Qdrant. A antiga rota conversacional
+Os dados e cálculos usam PostgreSQL; o juiz usa LLM para validar conteúdo e
+design após renderizar. Não usa RAG, Redis, MongoDB ou Qdrant para os dados.
+A antiga rota conversacional
 `relatorios` foi removida; o chat orienta o uso do botão do aplicativo.
 
 ## Requisição
@@ -64,13 +66,12 @@ Não houve mudança nos cálculos, autorização ou registro transacional.
 ## Entrega e auditoria
 
 Depois de renderizar, o serviço reconfere o perfil/CD e registra em uma única
-transação `tb_relatorio` com usuário, datas, SHA-256 dos bytes e status `GERADO`,
-e `tb_log_acesso_relatorio` com ação `BAIXOU`. Os valores seguem o backend e o
-schema versionado, em maiúsculas e sem acento. Bancos antigos com valores em
-minúsculas precisam ser alinhados separadamente; esta alteração não migra registros
-nem modifica constraints ou triggers.
+transação `tb_relatorio` com usuário, datas, SHA-256 dos bytes e status `gerado`,
+e `tb_log_acesso_relatorio` com ação `baixou`. O status persistido é `gerado`.
+As constraints implantadas foram conferidas nesta revisão e aceitam esses
+valores em minúsculas. Não são executadas migrations nem alteradas constraints.
 Falha causa rollback e nenhum PDF é entregue. Essa operação não modifica alertas
-ou leituras. `BAIXOU` registra disponibilização pela API, não recebimento no celular.
+ou leituras. `baixou` registra disponibilização pela API, não recebimento no celular.
 Uma desconexão ou falha de rede depois do commit pode deixar o registro sem que
 o cliente receba o arquivo. Não há transação distribuída com o dispositivo.
 
@@ -81,14 +82,14 @@ nem permitem reproduzir todos os filtros. Não foram criadas tabelas ou migratio
 Sucesso: `application/pdf`, `Content-Disposition: attachment` e
 `Cache-Control: no-store`. Nome gerado pelo servidor a partir das datas.
 Erros: 403 acesso; 404 seleção; 409 dados inconsistentes; 422 filtros;
-503 banco; 500 falha inesperada. Erros de validação desse endpoint não repetem
+502 reprovação/veredito inválido; 503 banco/provedor indisponível; 500 falha inesperada. Erros de validação desse endpoint não repetem
 o corpo recebido (que contém token). Logs não incluem tokens, SQL ou mensagens
 brutas de SDKs. A rota de chat mantém seu contrato anterior.
 
 ## Uso e testes
 
 Instale `pip install -r requirements.txt`; o manifesto inclui ReportLab em
-produção e pypdf nos testes. Inicie `uvicorn app.main:app --reload` e abra `/docs`.
+produção, além de pypdf, PDFium e Pillow usados pelo juiz. Inicie `uvicorn app.main:app --reload` e abra `/docs`.
 No aplicativo, leia a resposta como bytes/blob para o download, não como JSON.
 
 A autenticação usa o mock central de usuário 12, conferido como GESTOR do CD 2

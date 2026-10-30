@@ -13,7 +13,7 @@ from app import config
 from app.erros import SaidaModeloInvalida, ServicoIndisponivel
 from app.guardrail import anonimizar_texto
 from langchain_core.messages import HumanMessage, SystemMessage
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, create_model, model_validator
 
 logger = logging.getLogger(__name__)
 RECUSA = "Não consegui validar essa resposta com as informações disponíveis. Tente reformular sua pergunta."
@@ -114,13 +114,19 @@ def avaliar(fontes: dict, *, visual: bool = False, imagem: str | None = None) ->
     inicio = perf_counter()
     resultado = "indisponivel"
     try:
-        texto = anonimizar_texto(json.dumps(fontes, ensure_ascii=False, default=str))
+        texto = anonimizar_texto(json.dumps(fontes, ensure_ascii=False, default=str, separators=(",", ":")))
         conteudo = texto if imagem is None else [
             {"type": "text", "text": texto},
             {"type": "image_url", "image_url": {"url": imagem}},
         ]
         opcoes = {"method": "json_schema"} if visual else {"method": "json_schema", "strict": True}
-        modelo = _modelo_juiz(visual).with_structured_output(Veredito, **opcoes)
+        criterio_referenciado = create_model(
+            "AvaliacaoReferenciada", __base__=AvaliacaoCriterio,
+            referencias=(list[Literal[tuple(fontes)]], ...),
+        )
+        schema = create_model("VereditoReferenciado", __base__=Veredito,
+                              criterios=(list[criterio_referenciado], ...))
+        modelo = _modelo_juiz(visual).with_structured_output(schema, **opcoes)
         criterios = ["visual"] if visual else list(CRITERIOS)
         instrucao = PROMPT + "\nNesta chamada retorne EXATAMENTE estes critérios, uma vez cada: " + json.dumps(criterios)
         instrucao += "\nUse em referencias SOMENTE os IDs de fontes: " + json.dumps(list(fontes), ensure_ascii=False)
@@ -165,8 +171,6 @@ def julgar_chat(estado: dict) -> str:
     fontes = {
         "pergunta": estado["pergunta_original"], "candidata": estado["resposta"],
         "persona": PERSONA_SISTEMA, "evidencias": estado.get("evidencias_juiz", []),
-        "historico_nao_verificado": estado.get("historico", []),
-        "memoria_nao_verificada": estado.get("memoria_recuperada", []),
     }
     try:
         return estado["resposta"] if avaliar(fontes).aprovado else RECUSA
@@ -186,7 +190,13 @@ def julgar_pdf(dados: dict, pdf: bytes) -> bool:
     except ImportError:
         raise ServicoIndisponivel("Dependências da avaliação PDF não instaladas.") from None
 
-    design = Path(__file__).resolve().parent.parent.joinpath("design.md").read_text(encoding="utf-8")
+    caminho_design = Path(__file__).resolve().parent.parent / "design.md"
+    if not caminho_design.is_file():
+        caminho_design = Path(__file__).with_name("design.md")
+    try:
+        design = caminho_design.read_text(encoding="utf-8")
+    except OSError:
+        raise ServicoIndisponivel("Especificação visual do relatório indisponível.") from None
     try:
         paginas = PdfReader(BytesIO(pdf)).pages
         textos = {f"pagina:{i + 1}": p.extract_text() or "" for i, p in enumerate(paginas)}
@@ -194,13 +204,39 @@ def julgar_pdf(dados: dict, pdf: bytes) -> bool:
             raise ValueError("PDF sem páginas.")
     except (OSError, TypeError, ValueError, PdfReadError):
         raise SaidaModeloInvalida("PDF não pode ser avaliado.") from None
-    fontes = {"dados_snapshot": dados, "design": design, "pedido": "Relatório completo dos filtros do snapshot.", **textos}
-    aprovado = avaliar(fontes).aprovado
+    # As leituras já alimentaram os cálculos e o gráfico no backend. Enviar
+    # novamente toda a série por página excede a cota de entrada do provedor.
+    resumo = {chave: valor for chave, valor in dados.items() if chave not in {"leituras", "alertas"}}
+    texto_completo = "\n".join(textos.values())
+    if any(alerta[3].strftime("%d/%m/%Y %H:%M:%S") not in texto_completo
+           for alerta in dados.get("alertas", [])):
+        logger.warning("Juiz PDF: falha=alerta_ausente")
+        return False
+    aprovado = True
     try:
         with pdfium.PdfDocument(pdf) as documento:
             if len(documento) != len(textos):
                 raise SaidaModeloInvalida("Paginação inconsistente.")
             for i in range(len(documento)):
+                texto_pagina = textos[f"pagina:{i + 1}"]
+                alertas = [alerta for alerta in dados.get("alertas", [])
+                           if alerta[3].strftime("%d/%m/%Y %H:%M:%S") in texto_pagina]
+                fontes = {
+                    "dados_snapshot": {**resumo, "alertas_presentes_na_pagina": alertas},
+                    "design": design,
+                    "pedido": "Confira esta página do relatório. Indicadores são agregados do snapshot; "
+                              "alertas são os registros cujos horários aparecem nesta página. "
+                              "Não exija todos os alertas em uma única página.",
+                    f"pagina:{i + 1}": texto_pagina,
+                    "paginacao": {"pagina": i + 1, "total": len(textos)},
+                }
+                # A especificação visual completa pertence à chamada com imagem.
+                # Na chamada textual basta o contrato documental; repetir o design
+                # também aqui consome a cota sem acrescentar evidência operacional.
+                fontes_textuais = {**fontes, "design": "Relatório profissional com filtros, indicadores, "
+                                   "horários, alertas e ressalvas. Valores vêm do snapshot. "
+                                   "Não exige persona conversacional nem números ilustrativos."}
+                aprovado = avaliar(fontes_textuais).aprovado and aprovado
                 pagina = documento[i]
                 try:
                     bitmap = pagina.render(scale=1.5)
@@ -214,9 +250,7 @@ def julgar_pdf(dados: dict, pdf: bytes) -> bool:
                 finally:
                     pagina.close()
                 # Mesmo quando uma página reprova, conferir todas as demais.
-                visual = avaliar({"design": design, f"pagina:{i + 1}": textos[f"pagina:{i + 1}"],
-                                  "paginacao": {"pagina": i + 1, "total": len(textos)},
-                                  "dados_snapshot": dados}, visual=True, imagem=url)
+                visual = avaliar(fontes, visual=True, imagem=url)
                 aprovado = visual.aprovado and aprovado
     except (ServicoIndisponivel, SaidaModeloInvalida):
         raise
