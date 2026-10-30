@@ -19,6 +19,13 @@ O juiz usa diretamente `GROQ_API_KEY` e `GEMINI_API_KEY`, já configuradas na AP
 Não exige variáveis adicionais de confirmação. A gratuidade depende do plano
 das contas nos provedores; o código não consulta nem altera esses planos.
 Cota excedida ou serviço indisponível nunca implica aprovação automática.
+A chamada textual respeita o prazo de reposição informado pelo Groq em
+`x-ratelimit-reset-tokens`, compartilhado entre os julgamentos do mesmo processo.
+Há espera antes da próxima chamada, limitada a 30 segundos; não há repetição
+automática de chamadas rejeitadas. O tempo total de um PDF pode ultrapassar esse
+limite porque todas as páginas passam por chamadas textuais e visuais distintas.
+Esse controle não conhece o consumo feito por outros processos ou aplicações da
+mesma conta; uma nova restrição do provedor ainda resulta em indisponibilidade.
 A implementação inicial foi validada com mocks. Avaliações reais controladas
 são registradas na seção de correções abaixo.
 
@@ -32,6 +39,9 @@ dependências adicionais em diretório temporário, sem alterar o ambiente Asses
 relevância da resposta, relevância do contexto, segurança, estilo e visual.
 Cada avaliação exige justificativa curta e IDs de fontes existentes, sem cadeia
 de pensamento. Nota inteira estrita de 1 a 5; inaplicável exige nota nula.
+O schema restringe os critérios à modalidade executada e exige referências não
+vazias. No PDF, o prompt identifica o texto da página como candidata, em vez de
+exigir uma resposta conversacional ao pedido de conferência.
 Critérios críticos nunca podem ser inaplicáveis. Critérios ausentes, duplicados,
 extras ou referências desconhecidas invalidam o julgamento.
 

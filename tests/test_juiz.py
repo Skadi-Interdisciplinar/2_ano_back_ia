@@ -166,3 +166,73 @@ def test_falha_do_juiz_devolve_mensagem_de_indisponibilidade(monkeypatch):
     resposta = juiz.julgar_chat({"pergunta_original": "Pergunta", "resposta": "Candidata"})
 
     assert resposta == juiz.INDISPONIVEL
+
+
+def test_aguarda_liberacao_informada_pelo_groq_sem_repetir_chamada(monkeypatch):
+    monkeypatch.setattr(juiz, "perf_counter", Mock(return_value=100.0))
+    monkeypatch.setattr(juiz, "_proxima_chamada_groq", 0.0)
+    dormir = Mock()
+    monkeypatch.setattr(juiz, "sleep", dormir)
+    modelo = Mock()
+    modelo.invoke.return_value = "veredito"
+    juiz._registrar_cota_groq(Mock(headers={"x-ratelimit-reset-tokens": "2.8s"}))
+
+    resposta = juiz._chamar_juiz(modelo, [], visual=False)
+
+    assert resposta == "veredito"
+    assert dormir.call_args.args[0] == pytest.approx(2.8)
+    modelo.invoke.assert_called_once_with([])
+
+
+def test_cota_com_espera_excessiva_nao_prende_a_requisicao(monkeypatch):
+    monkeypatch.setattr(juiz, "perf_counter", Mock(return_value=100.0))
+    monkeypatch.setattr(juiz, "_proxima_chamada_groq", 200.0)
+    dormir = Mock()
+    monkeypatch.setattr(juiz, "sleep", dormir)
+    modelo = Mock()
+
+    with pytest.raises(ServicoIndisponivel):
+        juiz._chamar_juiz(modelo, [], visual=False)
+
+    dormir.assert_not_called()
+    modelo.invoke.assert_not_called()
+
+
+def test_avaliacao_visual_nao_aguarda_cota_do_outro_provedor(monkeypatch):
+    monkeypatch.setattr(juiz, "_proxima_chamada_groq", float("inf"))
+    dormir = Mock()
+    monkeypatch.setattr(juiz, "sleep", dormir)
+    modelo = Mock()
+
+    juiz._chamar_juiz(modelo, [], visual=True)
+
+    dormir.assert_not_called()
+    modelo.invoke.assert_called_once_with([])
+
+
+@pytest.mark.parametrize("reset,segundos", [("1m2.5s", 62.5), ("500ms", 0.5), ("inválido", 0.0)])
+def test_interpreta_cota_sem_inventar_tempo_de_espera(monkeypatch, reset, segundos):
+    monkeypatch.setattr(juiz, "perf_counter", Mock(return_value=100.0))
+    monkeypatch.setattr(juiz, "_proxima_chamada_groq", 100.0)
+
+    juiz._registrar_cota_groq(Mock(headers={"x-ratelimit-reset-tokens": reset}))
+
+    assert juiz._proxima_chamada_groq == 100.0 + segundos
+
+
+def test_juiz_avalia_a_pagina_como_candidata_sem_exigir_resposta_de_chat(monkeypatch):
+    modelo = Mock()
+    bruto = _veredito(5).model_dump()
+    for criterio in bruto["criterios"]:
+        criterio["referencias"] = ["pagina:1"]
+    modelo.with_structured_output.return_value.invoke.return_value = bruto
+    monkeypatch.setattr(juiz, "_modelo_juiz", Mock(return_value=modelo))
+    monkeypatch.setattr(juiz, "_proxima_chamada_groq", 0.0)
+
+    veredito = juiz.avaliar({"pagina:1": "Relatório", "paginacao": {"pagina": 1, "total": 2}})
+
+    mensagem = modelo.with_structured_output.return_value.invoke.call_args.args[0][0].content
+    assert "Modo relatório PDF" in mensagem
+    assert "não uma resposta conversacional" in mensagem
+    assert "cabeçalho compacto textual" in mensagem
+    assert veredito.aprovado is True

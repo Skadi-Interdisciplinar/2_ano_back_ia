@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import logging
+import re
+import threading
 from functools import lru_cache
 from pathlib import Path
-from time import perf_counter
+from time import perf_counter, sleep
 from typing import Literal
 
 from app import config
@@ -16,6 +18,9 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, create_model, model_validator
 
 logger = logging.getLogger(__name__)
+TIMEOUT_JUIZ = 30
+_cota_groq = threading.Lock()
+_proxima_chamada_groq = 0.0
 RECUSA = "Não consegui validar essa resposta com as informações disponíveis. Tente reformular sua pergunta."
 INDISPONIVEL = "Não consegui concluir a validação da resposta neste momento. Tente novamente mais tarde."
 CRITERIOS = ("fidelidade", "relevancia_resposta", "relevancia_contexto", "seguranca", "estilo")
@@ -55,7 +60,10 @@ aplicavel=false, nota=null e explique. Critérios críticos nunca são inaplicá
 No chat siga a persona fornecida; no PDF exija linguagem profissional documental,
 não parágrafo conversacional. Não exija que o relatório imite números ilustrativos.
 Na avaliação visual considere somente a página identificada, seu papel no documento
-e o design; não exija o resumo da primeira página em páginas de continuação.
+e o design. A composição com faixa institucional e cartões é da primeira página;
+as páginas de continuação apresentam cabeçalho compacto textual e tabelas detalhadas.
+Não exija nelas a faixa institucional, cartões ou gráfico da primeira página;
+confira cabeçalho, legibilidade, tabela repetida, registros e rodapé da continuação.
 Retorne JSON no schema solicitado, sem campos adicionais.
 """ + json.dumps(RUBRICAS, ensure_ascii=False)
 
@@ -66,7 +74,7 @@ class AvaliacaoCriterio(BaseModel):
     aplicavel: bool = Field(strict=True)
     nota: int | None = Field(ge=1, le=5, strict=True)
     justificativa: str = Field(min_length=1, max_length=800)
-    referencias: list[str]
+    referencias: list[str] = Field(min_length=1)
 
     @model_validator(mode="after")
     def conferir_nota(self):
@@ -88,6 +96,29 @@ class Veredito(BaseModel):
         return all(c.nota is not None and c.nota >= 4 for c in self.criterios if c.criterio in CRITICOS)
 
 
+def _registrar_cota_groq(resposta) -> None:
+    global _proxima_chamada_groq
+    reset = resposta.headers.get("x-ratelimit-reset-tokens", "")
+    partes = re.findall(r"(\d+(?:\.\d+)?)(ms|s|m|h)", reset)
+    if partes and "".join(valor + unidade for valor, unidade in partes) == reset:
+        segundos = sum(float(valor) * {"ms": 0.001, "s": 1, "m": 60, "h": 3600}[unidade]
+                       for valor, unidade in partes)
+        _proxima_chamada_groq = perf_counter() + segundos
+
+
+def _chamar_juiz(modelo, mensagens: list, *, visual: bool):
+    if visual:
+        return modelo.invoke(mensagens)
+    with _cota_groq:
+        espera = max(0, _proxima_chamada_groq - perf_counter())
+        if espera > TIMEOUT_JUIZ:
+            raise ServicoIndisponivel("Cota do juiz ainda indisponível.")
+        if espera:
+            logger.info("Juiz: espera_cota=%.3fs", espera)
+            sleep(espera)
+        return modelo.invoke(mensagens)
+
+
 @lru_cache(maxsize=2)
 def _modelo_juiz(visual: bool = False):
     from app.observabilidade import coletor
@@ -98,14 +129,16 @@ def _modelo_juiz(visual: bool = False):
         from langchain_google_genai import ChatGoogleGenerativeAI
 
         return ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0,
-                                       google_api_key=config.GEMINI_API_KEY, timeout=30, max_retries=0,
+                                       google_api_key=config.GEMINI_API_KEY, timeout=TIMEOUT_JUIZ, max_retries=0,
                                        callbacks=[coletor])
     if not config.GROQ_API_KEY:
         raise ServicoIndisponivel("GROQ_API_KEY não configurada.")
+    import httpx
     from langchain_groq import ChatGroq
 
     return ChatGroq(model="openai/gpt-oss-120b", temperature=0,
-                    groq_api_key=config.GROQ_API_KEY, timeout=30, max_retries=0,
+                    groq_api_key=config.GROQ_API_KEY, timeout=TIMEOUT_JUIZ, max_retries=0,
+                    http_client=httpx.Client(event_hooks={"response": [_registrar_cota_groq]}),
                     callbacks=[coletor])
 
 
@@ -120,17 +153,25 @@ def avaliar(fontes: dict, *, visual: bool = False, imagem: str | None = None) ->
             {"type": "image_url", "image_url": {"url": imagem}},
         ]
         opcoes = {"method": "json_schema"} if visual else {"method": "json_schema", "strict": True}
+        criterios = ["visual"] if visual else list(CRITERIOS)
         criterio_referenciado = create_model(
             "AvaliacaoReferenciada", __base__=AvaliacaoCriterio,
-            referencias=(list[Literal[tuple(fontes)]], ...),
+            criterio=(Literal[tuple(criterios)], ...),
+            referencias=(list[Literal[tuple(fontes)]], Field(min_length=1)),
         )
         schema = create_model("VereditoReferenciado", __base__=Veredito,
                               criterios=(list[criterio_referenciado], ...))
         modelo = _modelo_juiz(visual).with_structured_output(schema, **opcoes)
-        criterios = ["visual"] if visual else list(CRITERIOS)
         instrucao = PROMPT + "\nNesta chamada retorne EXATAMENTE estes critérios, uma vez cada: " + json.dumps(criterios)
         instrucao += "\nUse em referencias SOMENTE os IDs de fontes: " + json.dumps(list(fontes), ensure_ascii=False)
-        bruto = modelo.invoke([SystemMessage(content=instrucao), HumanMessage(content=conteudo)])
+        if "paginacao" in fontes:
+            instrucao += (
+                "\nModo relatório PDF: a candidata é a página identificada pela chave pagina:N, "
+                "não uma resposta conversacional. Compare seu conteúdo aos dados_snapshot e ao pedido. "
+                "Não espere um campo candidata nem uma resposta escrita ao pedido de conferência. "
+                "Cada página pode conter apenas parte do relatório; avalie seu papel na paginação informada."
+            )
+        bruto = _chamar_juiz(modelo, [SystemMessage(content=instrucao), HumanMessage(content=conteudo)], visual=visual)
         try:
             veredito = Veredito.model_validate(bruto)
             esperados = {"visual"} if visual else set(CRITERIOS)

@@ -1,5 +1,36 @@
 # Acompanhamento da Implementacao Skadi
 
+## Validação mensal do PDF — 30/10/2026
+
+Pedido conferido: `data_inicial=2026-09-30`, `data_final=2026-10-30`,
+usuário de teste atual, sem alterar perfil ou ampliar o CD. O snapshot retornou
+577 leituras e 144 alertas; o PDF possui nove páginas. Os testes reais desta
+investigação não gravaram auditoria nem disponibilizaram um PDF não aprovado.
+
+O primeiro bloqueio foi HTTP 429 do Groq, com limite informado de 8.000 tokens
+por minuto, na avaliação textual da página 4. A correção usa o cabeçalho de
+reposição fornecido pelo serviço antes da próxima chamada, com espera máxima
+de 30 segundos. Não repete rejeições nem modifica plano ou modelo.
+
+O prompt passou a identificar a página como candidata e distinguir o resumo
+visual inicial das tabelas de continuação. O schema restringe os critérios à
+modalidade da chamada e exige referências não vazias.
+
+Na repetição real, as quatro avaliações textuais executadas foram aprovadas,
+sem novo bloqueio do Groq. As duas primeiras páginas também passaram na visão.
+A terceira recebeu uma objeção à ausência do cabeçalho da primeira página;
+essa distinção foi explicitada no prompt. Na quarta, o Gemini retornou cota
+esgotada. Uma chamada mínima confirmou limite gratuito diário de 20 requisições
+para `gemini-2.5-flash` no projeto, com reposição estimada pelo provedor em cerca
+de 20 horas naquele momento. Não é um limite definido pela Trimmy.
+
+**Limitação atual:** a aprovação completa das nove páginas e a nova instrução
+visual de continuação ainda dependem da reposição da cota. Não houve sucesso
+de ponta a ponta nem download comprovado nesta investigação. O retorno 503
+permanece correto enquanto o serviço visual não puder avaliar todas as páginas.
+Suíte unitária: 144 testes aprovados; Ruff aprovado. Mocks não comprovam
+disponibilidade nem qualidade dos provedores.
+
 ## Revisão integral atual — 30/10/2026
 
 O checklist vigente e o desenho de arquitetura estão em `TRIMMY.md`. As seções
