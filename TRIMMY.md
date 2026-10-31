@@ -2,7 +2,7 @@
 
 A arquitetura de Inteligência Artificial do sistema é composta por um conjunto de agentes especializados, responsáveis por diferentes etapas do processo de monitoramento e gerenciamento dos frigoríficos. A divisão das responsabilidades permite que cada agente execute uma função específica, enquanto o **Agente Orquestrador** coordena o fluxo de informações entre eles.
 
-A comunicação entre os agentes ocorre de acordo com a necessidade identificada a partir da solicitação do usuário ou de uma ocorrência detectada pelo sistema. Dessa forma, os agentes podem atuar de maneira integrada para realizar atividades de monitoramento, predição, diagnóstico, geração de relatórios e interação com o usuário.
+A comunicação entre os agentes ocorre de acordo com a necessidade identificada a partir da solicitação do usuário. Dessa forma, os agentes podem atuar de maneira integrada para realizar atividades de monitoramento, diagnóstico, geração de relatórios e interação com o usuário.
 
 ## 1. Agente Orquestrador
 
@@ -40,27 +40,10 @@ Quando identifica uma temperatura fora dos parâmetros estabelecidos, o agente r
 
 **Saída:** leituras processadas e identificação de possíveis ocorrências relacionadas à temperatura.
 
-## 3. Agente de Predição
 
-O Agente de Predição é responsável pela análise dos dados históricos de temperatura. Seu objetivo é identificar padrões e tendências que possam indicar uma alteração nas condições de funcionamento dos frigoríficos.
+## 3. Agente de Diagnóstico
 
-A partir da análise do histórico, o agente busca identificar possíveis desvios antes que eles atinjam níveis críticos, fornecendo informações que podem auxiliar na atuação preventiva.
-
-**Responsabilidades:**
-
-* Analisar o histórico de temperaturas;
-* Identificar padrões e tendências;
-* Detectar possíveis alterações no comportamento da temperatura;
-* Estimar possíveis desvios futuros;
-* Encaminhar os resultados para o processamento do sistema.
-
-**Entrada:** dados históricos de temperatura e informações relacionadas ao funcionamento dos frigoríficos.
-
-**Saída:** tendências identificadas e possíveis desvios previstos.
-
-## 4. Agente de Diagnóstico
-
-O Agente de Diagnóstico é responsável pela análise das ocorrências identificadas durante o monitoramento e das tendências apontadas pelo Agente de Predição. 
+O Agente de Diagnóstico é responsável pela análise das ocorrências identificadas durante o monitoramento.
 A partir dessas informações, realiza uma análise das possíveis causas associadas ao problema identificado.
 
 Entre as possíveis causas analisadas estão falhas no compressor, abertura da porta, problemas no sensor de temperatura e excesso de carga no frigorífico.
@@ -68,34 +51,27 @@ Entre as possíveis causas analisadas estão falhas no compressor, abertura da p
 **Responsabilidades:**
 
 * Analisar ocorrências identificadas pelo monitoramento;
-* Considerar tendências identificadas pela predição;
 * Relacionar os dados disponíveis a possíveis causas;
 * Sugerir hipóteses para a origem do problema;
 * Encaminhar o diagnóstico para o Agente Orquestrador.
 
-**Entrada:** dados de monitoramento, previsões e informações do frigorífico.
+**Entrada:** dados de monitoramento e informações do frigorífico.
 
 **Saída:** possíveis causas associadas à ocorrência identificada.
 
-## 5. Agente de Relatórios
+## 4. Serviço de relatórios PDF (fora do chat)
 
-O Agente de Relatórios é responsável pela organização e consolidação das informações armazenadas pelo sistema. Seu objetivo é gerar relatórios e estatísticas que permitam acompanhar o comportamento dos frigoríficos e o histórico de ocorrências.
+O botão do mobile chama `POST /relatorios/pdf` com token, CD, câmara (ou todas)
+e datas inicial/final. Não é um agente do grafo e não utiliza LLM ou RAG.
+GESTOR acessa o próprio CD; SUPER_ADMIN seleciona um CD. ADMIN e OPERADOR não
+podem gerar relatórios. As estatísticas são calculadas com as leituras do período,
+e o histórico de alertas inclui todos os status.
 
-Os relatórios podem utilizar informações relacionadas às temperaturas registradas, alertas gerados, desempenho dos equipamentos e ocorrências anteriores.
+O PDF é entregue diretamente após registrar metadados, hash e disponibilização
+no PostgreSQL. Não há armazenamento permanente do arquivo, assinatura digital
+ou reabertura posterior. O contrato completo está em `docs/relatorios.md`.
 
-**Responsabilidades:**
-
-* Consultar informações históricas do sistema;
-* Consolidar dados de temperatura e alertas;
-* Gerar estatísticas sobre os frigoríficos;
-* Organizar o histórico de ocorrências;
-* Produzir informações para acompanhamento e análise.
-
-**Entrada:** dados históricos, temperaturas, alertas e registros de ocorrências.
-
-**Saída:** relatórios, estatísticas e informações consolidadas.
-
-## 6. Agente Assistente
+## 5. Agente Assistente
 
 O Agente Assistente é responsável pela interação entre o sistema e o usuário. Sua função é interpretar solicitações realizadas em linguagem natural e, quando necessário, acionar o Agente Orquestrador para obter informações dos demais componentes da arquitetura.
 
@@ -113,12 +89,12 @@ Após o processamento, o agente apresenta os resultados de forma clara e objetiv
 
 **Saída:** resposta contextualizada com base nas informações obtidas pelo sistema.
 
-## 7. Fluxo de Comunicação entre os Agentes
+## 6. Fluxo de Comunicação entre os Agentes
 
 O fluxo de comunicação tem como elemento central o **Agente Orquestrador**, responsável por direcionar as solicitações e ocorrências para os agentes especializados.
 
-Em uma situação de temperatura fora do padrão, por exemplo, o **Agente de Monitoramento** identifica a ocorrência e encaminha os dados ao **Agente Orquestrador**. A partir dessas informações, o orquestrador pode acionar o **Agente de Predição** para analisar o comportamento histórico e, posteriormente, o **Agente de Diagnóstico** para investigar possíveis causas.
+Em uma consulta sobre temperatura fora do padrão, o roteador encaminha pedidos de leitura e alertas ao **Agente de Monitoramento**, ou pedidos de análise de causas ao **Agente de Diagnóstico**. O **Agente Orquestrador** apresenta o resultado ao usuário.
 
-Quando o usuário solicita informações sobre o sistema, o **Agente Assistente** interpreta a solicitação e utiliza o orquestrador para consultar os agentes necessários. Caso sejam solicitadas informações históricas ou estatísticas, o **Agente de Relatórios** pode ser acionado para consolidar os dados.
+Quando o usuário solicita relatórios ou estatísticas no chat, recebe orientação para selecionar os filtros e usar o botão de PDF do aplicativo. Esse botão chama o serviço de relatórios diretamente, sem passar pelo grafo conversacional.
 
 Dessa forma, a arquitetura permite a especialização das tarefas, mantendo a coordenação centralizada do fluxo de informações e possibilitando que os resultados de diferentes agentes sejam combinados para atender às necessidades do sistema e do usuário.

@@ -1,6 +1,39 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+import re
+from datetime import date
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+class DecisaoRota(BaseModel):
+    """Saída interna do roteador; não representa uma autorização de acesso."""
+
+    model_config = ConfigDict(extra="forbid")
+    rota: Literal["monitoramento", "diagnostico", "faq", "orquestrador"]
+
+
+class RelatorioRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    token: str = Field(min_length=1, max_length=10_000, repr=False)
+    cd_id: int | None = Field(default=None, gt=0, strict=True)
+    camara_id: int | None = Field(default=None, gt=0, strict=True)
+    data_inicial: date
+    data_final: date
+
+    @field_validator("data_inicial", "data_final", mode="before")
+    @classmethod
+    def data_iso(cls, valor):
+        if type(valor) is date or (isinstance(valor, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", valor)):
+            return valor
+        raise ValueError("Informe uma data no formato YYYY-MM-DD.")
+
+    @model_validator(mode="after")
+    def periodo_valido(self):
+        if self.data_inicial > self.data_final or self.data_final == date.max:
+            raise ValueError("Período inválido ou sem limite final representável.")
+        return self
 
 
 class ChatRequest(BaseModel):
@@ -26,6 +59,15 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     resposta: str
     agentes_chamados: list[str] = Field(default_factory=list)
+
+    @field_validator("resposta")
+    @classmethod
+    def texto_sem_formatacao(cls, valor: str) -> str:
+        """Apresenta texto simples sem alterar números, fontes ou ressalvas."""
+        valor = re.sub(r"(?<!\w)\*\*(\S(?:[^*\n]*[^\s*])?)\*\*(?!\w)", r"\1", valor)
+        # Marcadores junto ao texto; asteriscos separados por espaços podem ser multiplicação.
+        valor = re.sub(r"(?<!\w)\*([^\W\d_](?:[^*\n]*[^\s*])?)\*(?!\w)", r"\1", valor)
+        return " ".join(valor.split())
 
 
 class EncerrarChatRequest(BaseModel):

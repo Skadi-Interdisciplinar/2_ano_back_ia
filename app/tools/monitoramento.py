@@ -1,9 +1,13 @@
 from __future__ import annotations
 
-from contextlib import closing
+from contextlib import ExitStack, closing
+from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 
 from app.config import REDIS_URL
+from app.erros import ServicoIndisponivel
+from app.guardrail import anonimizar_texto
 from app.tools.access import validar_acesso
 from app.tools.contexto import obter_usuario_contexto
 from app.tools.db import get_conn
@@ -18,7 +22,7 @@ def _cliente_redis():
     import redis
 
     if not REDIS_URL:
-        raise RuntimeError("REDIS_URL não configurada.")
+        raise ServicoIndisponivel("REDIS_URL não configurada.")
     return redis.Redis.from_url(REDIS_URL, decode_responses=True)
 
 
@@ -49,6 +53,11 @@ def consultar_camaras_permitidas(
     """Única consulta cadastral interna; aplica autorização antes dos filtros."""
     criterios = FiltrosCamaraArgs(camara_id=camara_id, modelo=modelo, localizacao=localizacao)
     escopo = validar_acesso(usuario_id)
+    return _selecionar_camaras(escopo, criterios)
+
+
+def _selecionar_camaras(escopo, criterios: FiltrosCamaraArgs, *, cursor=None, cd_id=None) -> list[dict]:
+    """Seleção autorizada comum, também utilizável em um snapshot de relatório."""
     filtros = []
     parametros: list[object] = []
     if escopo.nivel_acesso == "SUPER_ADMIN":
@@ -58,6 +67,9 @@ def consultar_camaras_permitidas(
         parametros.append(escopo.cd_id)
     else:
         raise PermissionError("Usuário sem escopo de consulta de câmaras.")
+    if cd_id is not None:
+        filtros.append("cod_cd = %s")
+        parametros.append(cd_id)
     if criterios.camara_id is not None:
         filtros.append("id = %s")
         parametros.append(criterios.camara_id)
@@ -75,9 +87,14 @@ def consultar_camaras_permitidas(
         {where}
         ORDER BY localizacao, modelo, id
     """
-    with closing(get_conn()) as conexao, conexao.cursor() as cursor:
-        cursor.execute(consulta, tuple(parametros))
-        linhas = cursor.fetchall()
+    # Valida o escopo antes de abrir uma conexão operacional. Não fecha cursor recebido.
+    with ExitStack() as recursos:
+        cursor_ativo = cursor
+        if cursor_ativo is None:
+            conexao = recursos.enter_context(closing(get_conn()))
+            cursor_ativo = recursos.enter_context(conexao.cursor())
+        cursor_ativo.execute(consulta, tuple(parametros))
+        linhas = cursor_ativo.fetchall()
     return [
         {"camara_id": c[0], "modelo": c[1], "localizacao": c[2], "termometro": c[3],
          "limite_minimo": str(c[4]), "limite_maximo": str(c[5])}
@@ -87,7 +104,7 @@ def consultar_camaras_permitidas(
 
 def _cadastro_publico(camara: dict) -> dict:
     """IDs são dados internos, não contexto necessário ao modelo."""
-    return {campo: camara[campo] for campo in (
+    return {campo: anonimizar_texto(camara[campo]) if campo in {"modelo", "localizacao"} else camara[campo] for campo in (
         "modelo", "localizacao", "limite_minimo", "limite_maximo",
     )}
 
@@ -118,7 +135,7 @@ def _ultimas_leituras_permitidas(termometros: set[str]) -> dict[str, dict]:
             # O limite é inclusivo: um evento se repete entre páginas, sem sobrescrever o mais novo.
             limite_superior = ultimo_id
     except (redis.exceptions.ConnectionError, redis.exceptions.TimeoutError) as erro:
-        raise RuntimeError("Redis indisponível.") from erro
+        raise ServicoIndisponivel("Redis indisponível.") from erro
     return leituras
 
 
@@ -149,17 +166,27 @@ def consultar_temperaturas_permitidas(
     resultado = []
     for camara in camaras:
         leitura = leituras.get(str(camara["termometro"]))
+        leitura_valida = False
+        if leitura:
+            try:
+                leitura_valida = Decimal(str(leitura.get("temperatura"))).is_finite()
+                datetime.fromisoformat(leitura.get("data_hora") or "")
+            except (InvalidOperation, ValueError, TypeError):
+                leitura_valida = False
         resultado.append({
             **_cadastro_publico(camara),
-            "temperatura": leitura.get("temperatura") if leitura else None,
-            "data_hora": leitura.get("data_hora") if leitura else None,
-            "leitura_disponivel": bool(leitura and leitura.get("temperatura") is not None),
+            "temperatura": leitura.get("temperatura") if leitura_valida else None,
+            "data_hora": leitura.get("data_hora") if leitura_valida else None,
+            "leitura_disponivel": leitura_valida,
+            "leitura_invalida": bool(leitura and not leitura_valida),
         })
     return {"status": "ok", "camaras": resultado}
 
 
-def consultar_alertas_atuais(usuario_id: int) -> list[dict]:
-    """Consulta alertas ativos ou reconhecidos pelo próprio usuário."""
+def consultar_alertas_permitidos(
+    usuario_id: int, camara_id: int | None = None, alerta_id: int | None = None,
+) -> list[dict]:
+    """Consulta interna comum; conserva todos os filtros e associações por ID."""
 
     escopo = validar_acesso(usuario_id)
     filtros = [
@@ -172,7 +199,7 @@ def consultar_alertas_atuais(usuario_id: int) -> list[dict]:
         )))
         """
     ]
-    parametros: list[object] = ["ativo", "reconhecido", usuario_id]
+    parametros: list[object] = ["ATIVO", "RECONHECIDO", usuario_id]
 
     if escopo.nivel_acesso == "SUPER_ADMIN":
         pass
@@ -181,9 +208,16 @@ def consultar_alertas_atuais(usuario_id: int) -> list[dict]:
         parametros.append(escopo.cd_id)
     elif escopo.nivel_acesso == "OPERADOR" and escopo.cd_id is not None:
         filtros.extend(["camara.cod_cd = %s", "a.nivel_atual = %s"])
-        parametros.extend([escopo.cd_id, "operador"])
+        parametros.extend([escopo.cd_id, "OPERADOR"])
     else:
         raise PermissionError("Usuário sem escopo de consulta de alertas.")
+
+    if camara_id is not None:
+        filtros.append("a.cod_camara_frigorifica = %s")
+        parametros.append(camara_id)
+    if alerta_id is not None:
+        filtros.append("a.id = %s")
+        parametros.append(alerta_id)
 
     consulta = f"""
         SELECT
@@ -192,7 +226,9 @@ def consultar_alertas_atuais(usuario_id: int) -> list[dict]:
             a.nivel_gravidade,
             a.status,
             a.tipo,
-            a.data_hora
+            a.data_hora,
+            a.id,
+            a.cod_camara_frigorifica
         FROM tb_alerta a
         JOIN tb_camara_frigorifica camara ON camara.id = a.cod_camara_frigorifica
         WHERE {' AND '.join(filtros)}
@@ -209,8 +245,18 @@ def consultar_alertas_atuais(usuario_id: int) -> list[dict]:
             "status": linha[3],
             "tipo": linha[4],
             "data_hora": str(linha[5]),
+            "alerta_id": linha[6],
+            "camara_id": linha[7],
         }
         for linha in linhas
+    ]
+
+
+def consultar_alertas_atuais(usuario_id: int) -> list[dict]:
+    """Resultado público do monitoramento, sem expor IDs internos."""
+    return [
+        {campo: anonimizar_texto(alerta[campo]) for campo in ("camara", "gravidade", "status", "tipo", "data_hora")}
+        for alerta in consultar_alertas_permitidos(usuario_id)
     ]
 
 
@@ -225,10 +271,15 @@ def consultar_temperaturas(
     )
 
 
-@tool
-def listar_camaras_responsaveis() -> list[dict]:
-    """Lista cadastro e limites das câmaras permitidas, sem depender do Redis."""
-    return [_cadastro_publico(c) for c in consultar_camaras_permitidas(obter_usuario_contexto())]
+@tool(args_schema=FiltrosCamaraArgs)
+def listar_camaras_responsaveis(
+    camara_id: int | None = None, modelo: str | None = None, localizacao: str | None = None,
+) -> list[dict]:
+    """Consulta cadastro e limites por identificação; sem filtros lista as câmaras permitidas. Não usa Redis."""
+    filtros = FiltrosCamaraArgs(camara_id=camara_id, modelo=modelo, localizacao=localizacao)
+    return [_cadastro_publico(c) for c in consultar_camaras_permitidas(
+        obter_usuario_contexto(), **filtros.model_dump(exclude_none=True),
+    )]
 
 
 @tool

@@ -1,14 +1,10 @@
 from __future__ import annotations
 
-import logging
-
 from app.auth import obter_usuario_autenticado
 from app.graph import executar_fluxo_skadi
 from app.memory import encerrar_sessao
 from app.schemas import ChatRequest, ChatResponse, EncerrarChatRequest, EncerrarChatResponse
 from fastapi import APIRouter
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["trimmy"])
 
@@ -19,7 +15,14 @@ def encerrar(requisicao: EncerrarChatRequest) -> EncerrarChatResponse:
     return EncerrarChatResponse(resumo=encerrar_sessao(usuario.usuario_id))
 
 
-@router.post("/chat", response_model=ChatResponse)
+@router.post(
+    "/chat", response_model=ChatResponse,
+    responses={
+        403: {"description": "Acesso não permitido."},
+        502: {"description": "Resposta do modelo inválida."},
+        503: {"description": "Infraestrutura ou provedor indisponível."},
+    },
+)
 def conversar(requisicao: ChatRequest) -> ChatResponse:
     usuario = obter_usuario_autenticado(requisicao.token)
 

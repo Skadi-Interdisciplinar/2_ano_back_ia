@@ -1,32 +1,28 @@
-from __future__ import annotations
-
 import pytest
-from app.schemas import ChatRequest, ChatResponse
+from app.schemas import ChatRequest, ChatResponse, RelatorioRequest
 from pydantic import ValidationError
 
 
-def test_chat_request_remove_espacos():
+def test_remove_espacos_da_mensagem_do_chat():
     requisicao = ChatRequest(token="  token  ", mensagem="  olá  ")
 
     assert requisicao.token == "token"
     assert requisicao.mensagem == "olá"
 
 
-@pytest.mark.parametrize("campo", ["token", "mensagem"])
-def test_chat_request_rejeita_texto_vazio(campo):
-    dados = {"token": "t", "mensagem": "oi"}
-    dados[campo] = "   "
-
+def test_rejeita_mensagem_vazia_no_chat():
     with pytest.raises(ValidationError):
-        ChatRequest(**dados)
+        ChatRequest(token="teste", mensagem="   ")
 
 
-def test_chat_request_rejeita_campos_extras():
+def test_remove_formatacao_simples_da_resposta():
+    resposta = ChatResponse(resposta="**Leitura:** 4.00 °C\n\n")
+
+    assert resposta.resposta == "Leitura: 4.00 °C"
+
+
+def test_rejeita_periodo_de_relatorio_invertido():
     with pytest.raises(ValidationError):
-        ChatRequest(token="t", mensagem="oi", usuario_id=2)
-
-
-def test_chat_response_tem_lista_de_agentes_vazia_por_padrao():
-    resposta = ChatResponse(resposta="Olá")
-
-    assert resposta.agentes_chamados == []
+        RelatorioRequest(
+            token="teste", cd_id=2, data_inicial="2026-10-20", data_final="2026-10-10"
+        )

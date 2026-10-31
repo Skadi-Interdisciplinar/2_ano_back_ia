@@ -1,0 +1,232 @@
+[
+  {
+    "id": "DIAG-TEC-001",
+    "versao": "0.2",
+    "status": "APROVADA",
+    "ativa": true,
+    "titulo": "Porta ou vedação",
+    "cenario": "acima_maximo",
+    "grupos_requisitos": [
+      [
+        "porta_nao_fecha",
+        "vedacao_danificada"
+      ]
+    ],
+    "hipotese": "Entrada de ar pela porta pode contribuir para o desvio.",
+    "recomendacao": "Verificar fechamento e condição visível da vedação; encaminhar indícios de dano ao responsável técnico, sem instrução de reparo.",
+    "pergunta": "A porta fecha completamente? Há dano visível na vedação?",
+    "limitacoes": "Não inferir porta aberta apenas pela temperatura; não confirmar defeito, tempo de abertura ou relação causal.",
+    "fontes": [
+      {
+        "titulo": "Copeland — Considerations for Sizing and Selecting Condensing Units for WICFs",
+        "url": "https://e360blog.copeland.com/considerations-for-sizing-and-selecting-condensing-units-for-wicfs/",
+        "data_consulta": "2026-10-11",
+        "secao": "Air infiltration"
+      },
+      {
+        "titulo": "Danfoss — Cold rooms and refrigerant types FAQs",
+        "url": "https://www.danfoss.com/en-gb/about-danfoss/our-businesses/cooling/refrigerants-and-energy-efficiency/cold-rooms-and-refrigerant-types-faqs/",
+        "data_consulta": "2026-10-11",
+        "secao": "How can I ensure the efficiency of my cold room?"
+      }
+    ],
+    "aprovacao": {
+      "origem": "Autorização do usuário nesta conversa",
+      "data": "2026-10-11"
+    }
+  },
+  {
+    "id": "DIAG-TEC-002",
+    "versao": "0.2",
+    "status": "APROVADA",
+    "ativa": true,
+    "titulo": "Entrada de produtos com carga térmica",
+    "cenario": "acima_maximo",
+    "grupos_requisitos": [
+      [
+        "produtos_mais_quentes"
+      ]
+    ],
+    "hipotese": "Carga térmica dos produtos pode contribuir para o desvio.",
+    "recomendacao": "Esclarecer as condições de carregamento e submetê-las ao responsável pela operação; não prescrever mudanças de processo.",
+    "pergunta": "Entraram produtos nessa situação? Como estava a temperatura deles?",
+    "limitacoes": "Simples entrada de produtos não basta. Não assumir temperatura do produto, sobrecarga ou insuficiência de capacidade; não estimar tempo de recuperação nem aceitar o desvio como normal.",
+    "fontes": [
+      {
+        "titulo": "Copeland — Considerations for Sizing and Selecting Condensing Units for WICFs",
+        "url": "https://e360blog.copeland.com/considerations-for-sizing-and-selecting-condensing-units-for-wicfs/",
+        "data_consulta": "2026-10-11",
+        "secao": "Product load"
+      }
+    ],
+    "aprovacao": {
+      "origem": "Autorização do usuário nesta conversa",
+      "data": "2026-10-11"
+    }
+  },
+  {
+    "id": "DIAG-TEC-003",
+    "versao": "0.2",
+    "status": "APROVADA",
+    "ativa": true,
+    "titulo": "Obstrução da circulação de ar",
+    "cenario": "acima_maximo",
+    "grupos_requisitos": [
+      [
+        "produtos_obstruem_ar"
+      ]
+    ],
+    "hipotese": "Circulação de ar prejudicada pode contribuir para o desvio.",
+    "recomendacao": "Verificar obstruções visíveis e a disposição dos produtos com o responsável pela operação, sem inventar distância mínima.",
+    "pergunta": "Há produtos bloqueando as passagens de ar?",
+    "limitacoes": "Não afirmar ventilador parado ou avariado; não recomendar inspeção interna, limpeza técnica ou movimentação automática de produtos.",
+    "fontes": [
+      {
+        "titulo": "Danfoss — Cold rooms and refrigerant types FAQs",
+        "url": "https://www.danfoss.com/en-gb/about-danfoss/our-businesses/cooling/refrigerants-and-energy-efficiency/cold-rooms-and-refrigerant-types-faqs/",
+        "data_consulta": "2026-10-11",
+        "secao": "How can I ensure the efficiency of my cold room?"
+      }
+    ],
+    "aprovacao": {
+      "origem": "Autorização do usuário nesta conversa",
+      "data": "2026-10-11"
+    }
+  },
+  {
+    "id": "DIAG-TEC-004",
+    "versao": "0.2",
+    "status": "APROVADA",
+    "ativa": true,
+    "titulo": "Gelo visível no evaporador",
+    "cenario": "acima_maximo",
+    "grupos_requisitos": [
+      [
+        "gelo_evaporador"
+      ],
+      [
+        "gelo_obstrui_ar"
+      ]
+    ],
+    "hipotese": "Gelo obstruindo o evaporador pode prejudicar a troca térmica.",
+    "recomendacao": "Solicitar avaliação técnica do evaporador e degelo.",
+    "pergunta": "O gelo está no evaporador e parece bloquear a passagem de ar?",
+    "limitacoes": "Gelo isoladamente pede esclarecimento. Não confirmar falha de degelo, resistência, refrigerante ou ventilador; não prescrever remoção de gelo nem alterar ciclos.",
+    "fontes": [
+      {
+        "titulo": "Danfoss — Troubleshooting & fault diagnosis",
+        "url": "https://www.danfoss.com/en-us/industries/food-and-beverage/dcs/cold-rooms/system-design-component-selection/application-vertical-market-sizing/troubleshooting-fault-diagnosis/",
+        "data_consulta": "2026-10-11",
+        "secao": "Evaporator icing despite defrost running: root-cause analysis"
+      }
+    ],
+    "aprovacao": {
+      "origem": "Autorização do usuário nesta conversa",
+      "data": "2026-10-11"
+    }
+  },
+  {
+    "id": "DIAG-TEC-005",
+    "versao": "0.2",
+    "status": "APROVADA",
+    "ativa": true,
+    "titulo": "Ventilação do condensador",
+    "cenario": "acima_maximo",
+    "grupos_requisitos": [
+      [
+        "condensador_obstruido_observacao_segura"
+      ]
+    ],
+    "hipotese": "Rejeição de calor prejudicada pode contribuir para o desvio.",
+    "recomendacao": "Encaminhar a observação para avaliação técnica.",
+    "pergunta": "Existe uma observação técnica sobre a ventilação do condensador?",
+    "limitacoes": "Exige relato técnico ou observação externa segura. Não pedir acesso a componentes; não afirmar pressão elevada, defeito de compressor ou carga incorreta de refrigerante.",
+    "fontes": [
+      {
+        "titulo": "Danfoss — Cold rooms and refrigerant types FAQs",
+        "url": "https://www.danfoss.com/en-gb/about-danfoss/our-businesses/cooling/refrigerants-and-energy-efficiency/cold-rooms-and-refrigerant-types-faqs/",
+        "data_consulta": "2026-10-11",
+        "secao": "How can I ensure the efficiency of my cold room?"
+      },
+      {
+        "titulo": "Copeland — Refrigeration Basics: Troubleshooting Fundamentals",
+        "url": "https://e360blog.copeland.com/refrigeration-basics-troubleshooting-fundamentals/",
+        "data_consulta": "2026-10-11",
+        "secao": "How condensing removes heat from an environment"
+      }
+    ],
+    "aprovacao": {
+      "origem": "Autorização do usuário nesta conversa",
+      "data": "2026-10-11"
+    }
+  },
+  {
+    "id": "DIAG-TEC-006",
+    "versao": "0.2",
+    "status": "APROVADA",
+    "ativa": true,
+    "titulo": "Posição do sensor",
+    "cenario": "fora_faixa",
+    "grupos_requisitos": [
+      [
+        "sensor_posicao_exposta"
+      ]
+    ],
+    "hipotese": "Posição do sensor pode influenciar a representatividade da leitura.",
+    "recomendacao": "Solicitar verificação técnica da instalação do sensor.",
+    "pergunta": "Há informação sobre onde o sensor está instalado?",
+    "limitacoes": "Exige sensor exposto à porta, descarga do evaporador ou fonte de calor. Não confirmar erro de calibração; não corrigir, descartar ou substituir a leitura; não mandar reposicionar o sensor.",
+    "fontes": [
+      {
+        "titulo": "Danfoss — Troubleshooting & fault diagnosis",
+        "url": "https://www.danfoss.com/en-us/industries/food-and-beverage/dcs/cold-rooms/system-design-component-selection/application-vertical-market-sizing/troubleshooting-fault-diagnosis/",
+        "data_consulta": "2026-10-11",
+        "secao": "Post-commissioning temperature swings: controller settings to check"
+      }
+    ],
+    "aprovacao": {
+      "origem": "Autorização do usuário nesta conversa",
+      "data": "2026-10-11"
+    }
+  },
+  {
+    "id": "DIAG-TEC-007",
+    "versao": "0.3",
+    "status": "APROVADA",
+    "ativa": true,
+    "titulo": "Degelo em andamento",
+    "cenario": "acima_maximo",
+    "grupos_requisitos": [["degelo_em_andamento"]],
+    "hipotese": "O degelo relatado pode contribuir para a temperatura observada.",
+    "recomendacao": "Confirmar com o responsável pela operação o estado do ciclo e continuar acompanhando as leituras pelos limites cadastrados.",
+    "pergunta": "Há indicação ou relato de que o degelo está acontecendo nesta câmara e nesta ocorrência?",
+    "limitacoes": "Exige relato explícito do degelo em andamento na mesma câmara e ocorrência. Não concluir que o desvio é normal, ignorar alertas, garantir recuperação ou inventar duração e temperatura aceitáveis. Não pressupor tipo de degelo ou equipamento instalado.",
+    "fontes": [{
+      "titulo": "Danfoss — User Guide: Temperature controller for walk-in coolers and freezers, Type AK-RC 251",
+      "url": "https://assets.danfoss.com/documents/latest/161344/BC364433930186en-000101.pdf",
+      "data_consulta": "2026-10-11",
+      "secao": "Defrost: descrição do ciclo e interrupção do resfriamento; aplicação depende do equipamento"
+    }],
+    "aprovacao": {"origem": "Autorização do usuário nesta conversa", "data": "2026-10-12"}
+  },
+  {
+    "id": "DIAG-TEC-008",
+    "versao": "0.3",
+    "status": "APROVADA",
+    "ativa": true,
+    "titulo": "Possível remoção insuficiente de gelo pelo degelo",
+    "cenario": "acima_maximo",
+    "grupos_requisitos": [["degelo_encerrado"], ["gelo_evaporador"], ["gelo_permaneceu_apos_degelo"], ["gelo_obstrui_ar"]],
+    "hipotese": "O relato pode indicar que o ciclo não removeu adequadamente o gelo; a razão precisa de avaliação técnica.",
+    "recomendacao": "Encaminhar os relatos para avaliação técnica do degelo e do evaporador.",
+    "pergunta": "O ciclo de degelo desta ocorrência foi encerrado e permaneceu gelo no evaporador prejudicando a passagem de ar?",
+    "limitacoes": "Exige vínculo dos relatos ao mesmo ciclo encerrado, câmara e ocorrência. Gelo sozinho não confirma falha de degelo; outras causas de acúmulo são possíveis. Não confirmar defeito de resistência, controlador ou sensor; não recomendar ajustes, degelo manual ou remoção de gelo. Não confirmar falha de compressor, refrigerante ou ventilador.",
+    "fontes": [{
+      "titulo": "Danfoss — Troubleshooting & fault diagnosis",
+      "url": "https://www.danfoss.com/en-us/industries/food-and-beverage/dcs/cold-rooms/system-design-component-selection/application-vertical-market-sizing/troubleshooting-fault-diagnosis/",
+      "data_consulta": "2026-10-11",
+      "secao": "Evaporator icing despite defrost running: root-cause analysis"
+    }],
+    "aprovacao": {"origem": "Autorização do usuário nesta conversa", "data": "2026-10-12"}
+  }
+]

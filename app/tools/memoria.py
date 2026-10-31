@@ -1,5 +1,6 @@
 """Memória antiga, sempre filtrada pela identidade interna do usuário."""
 
+from app.guardrail import anonimizar_texto
 from app.tools.contexto import obter_usuario_contexto
 from app.vectorstore import buscar_resumos
 from langchain.tools import tool
@@ -14,7 +15,8 @@ class BuscarHistoricoArgs(BaseModel):
 def buscar_historico(busca: str) -> dict:
     """Busca até três resumos de conversas encerradas do usuário autenticado."""
     resultados = buscar_resumos(obter_usuario_contexto(), busca)
-    return {"resumos": resultados, "encontrado": bool(resultados)}
+    return {"resumos": [{"resumo": anonimizar_texto(r["resumo"])} for r in resultados],
+            "encontrado": bool(resultados)}
 
 
 TOOLS_MEMORIA = [buscar_historico]

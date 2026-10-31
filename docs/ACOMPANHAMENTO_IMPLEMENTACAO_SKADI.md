@@ -1,5 +1,42 @@
 # Acompanhamento da Implementacao Skadi
 
+## Serviço de relatórios PDF — 16/10/2026
+
+Implementado `POST /relatorios/pdf`, sem agente, LLM, RAG ou nova tool.
+Acesso restrito a GESTOR do próprio CD e SUPER_ADMIN com CD explícito.
+As consultas compartilham seleção de câmaras e autorização existentes e usam
+um snapshot PostgreSQL somente leitura. Geração ReportLab em memória seguida
+de registro atômico de metadados/hash e disponibilização. Foram removidos o
+especialista genérico de relatórios, seu prompt e sua rota interna do chat.
+`POST /chat` mantém token/mensagem e orienta o botão para pedidos de relatórios.
+
+Código principal: `routes/relatorios.py`, `relatorios.py`, `pdf_relatorio.py`;
+contrato completo em `docs/relatorios.md`. Adicionadas dependências ReportLab
+e pypdf (desenvolvimento), testes unitários e exemplos visuais sintéticos.
+Nenhuma migration ou escrita em bancos reais foi executada na implementação.
+A autenticação real continua pendente e o mock central não foi alterado.
+
+## Atualização de escopo — 15/10/2026
+
+Por solicitação do usuário, o agente de predição foi removido: rota interna,
+prompt, tool, cálculo estatístico, comandos administrativos, modelos locais,
+simulação exclusiva, testes específicos e documentação da funcionalidade.
+Foi removida também a dependência de fuso usada exclusivamente por esse código.
+Uma cópia temporária foi criada antes da remoção, mas não permaneceu acessível
+fora do processo isolado; não deve ser considerada um backup persistente.
+Os arquivos versionados continuam recuperáveis na versão do último commit;
+essa recuperação não garante alterações que ainda não estavam commitadas.
+
+O contrato `POST /chat` permanece com token e mensagem. Pedidos de temperatura
+futura são encaminhados ao orquestrador para informar a indisponibilidade do
+recurso, sem calcular estimativas ou reutilizar resultados do histórico.
+Monitoramento, diagnóstico, memória e as demais rotas foram preservados.
+Nenhum banco, leitura, alerta ou registro de conversa foi alterado. A marcação
+de leituras simuladas foi preservada nessa etapa e retirada posteriormente,
+a pedido do usuário, do monitoramento e dos relatórios. Isso não transforma
+dados de teste em medições reais; validações de acesso, números e datas permanecem.
+Os registros abaixo descrevem etapas anteriores, não o contrato atual da API.
+
 ## Etapa: Fundacao segura do backend da IA
 
 ### Solicitacao
@@ -10,7 +47,7 @@ Desenvolver o backend da IA do Skadi usando o Assessor apenas como referencia ar
 - Usar Gemini e Groq como provedores de IA, seguindo a estrutura tecnica do Assessor.
 - Obter a identidade somente da camada de autenticacao ja validada pelo aplicativo. O corpo do chat nao recebe `usuarioId`.
 - Usar temporariamente os niveis existentes no PostgreSQL: `admin`, `gestor` e `operador`.
-- Manter bloqueadas as consultas operacionais que dependem de uma associacao usuario-camara para operadores, de criterios de predicao, de regras tecnicas de diagnostico ou de FAQ aprovada.
+- Manter bloqueadas as consultas operacionais que dependem de uma associacao usuario-camara para operadores, de regras tecnicas de diagnostico ou de FAQ aprovada.
 
 ### Validacao de Arquitetura
 ARQUITETURA APROVADA para a fundacao. A estrutura corresponde ao padrao do Assessor e nao adiciona banco, fila, framework ou integracao fora das fontes fornecidas. As tools que exigem informacao ausente permanecem bloqueadas.
@@ -32,7 +69,7 @@ ARQUITETURA APROVADA para a fundacao. A estrutura corresponde ao padrao do Asses
 ### Validacao das Regras de Negocio
 - A identidade nao e aceita do frontend; a API exige a identidade ja autenticada pelo aplicativo.
 - A consulta de usuario usa os niveis existentes no banco: `admin`, `gestor` e `operador`.
-- Nenhuma regra de alerta, limite, predicao, sobrevivencia, diagnostico tecnico, FAQ ou permissao por camara foi criada.
+- Nenhuma regra de alerta, limite, sobrevivencia, diagnostico tecnico, FAQ ou permissao por camara foi criada.
 
 ### Auditoria
 - Confirmado que o payload de chat rejeita campos extras, impedindo `usuarioId` livre no corpo.
@@ -55,7 +92,7 @@ Aguardando resposta para a integracao autenticada e para o escopo de camaras por
 ### Perguntas pendentes ao usuario
 - Como o backend principal disponibilizara a identidade autenticada para a API da IA.
 - Qual relacao do banco define as camaras permitidas para cada operador.
-- Criterios aprovados para predicao, diagnostico tecnico e respostas pendentes da FAQ.
+- Criterios aprovados para diagnostico tecnico e respostas pendentes da FAQ.
 
 ## Etapa: Massa de dados sinteticos para teste integrado
 
@@ -112,7 +149,7 @@ Avancar para o primeiro fluxo operacional de perguntas: leitura de temperatura d
 - Validar o usuario autenticado no PostgreSQL e limitar a busca ao seu centro de distribuicao (`cod_cd`).
 - Localizar o termometro e os limites ja cadastrados para a camara autorizada.
 - Ler somente o Stream oficial `skadi:leituras:temperatura` do Redis e devolver a leitura mais recente daquele termometro.
-- Manter operador sem acesso ate existir no banco o vinculo aprovado usuario-camara. Nao incluir predicao, diagnostico ou recomendacao.
+- Manter operador sem acesso ate existir no banco o vinculo aprovado usuario-camara. Nao incluir diagnostico ou recomendacao.
 
 ### Validacao de Arquitetura
 ARQUITETURA APROVADA. O fluxo usa apenas campos e fontes existentes: `tb_usuario`, `tb_camara_frigorifica` e o Stream Redis definido no projeto. O identificador de usuario vem do estado autenticado do backend; o parametro do console e exclusivo para teste local.
@@ -130,7 +167,7 @@ ARQUITETURA APROVADA. O fluxo usa apenas campos e fontes existentes: `tb_usuario
 
 ### Validacao das Regras de Negocio
 - A resposta de monitoramento nao cria leitura, limite, alerta ou recomendacao. Ela apenas expoe a leitura existente e os limites cadastrados, dentro do CD permitido.
-- Predicoes continuam indisponiveis por falta de criterios aprovados. Diagnosticos continuam apresentados somente como hipotese quando a base tecnica for fornecida.
+- Diagnosticos continuam apresentados somente como hipotese quando a base tecnica for fornecida.
 
 ### Decisao final
 Implementacao pronta para validacao local da pergunta de monitoramento. A proxima expansao segura depende do teste completo do provedor ou de uma nova capacidade aprovada.
@@ -157,7 +194,7 @@ Preparar a IA para consumo pelo aplicativo mobile e manter a validacao de token 
 
 ### Implementacao do Redator
 - Definido `POST /api/v1/ia/chat` como endpoint oficial do aplicativo mobile. O endpoint legado `/chat` foi mantido para nao quebrar testes anteriores, mas nao aparece na documentacao.
-- Adicionado `GET /api/v1/ia/capacidades`, para o aplicativo descobrir recursos efetivamente entregues sem presumir predicao, diagnostico ou FAQ.
+- Adicionado `GET /api/v1/ia/capacidades`, para o aplicativo descobrir recursos efetivamente entregues sem presumir diagnostico ou FAQ.
 - A verificacao de token foi deixada como `TODO(autenticacao-mobile)` comentado. Enquanto ela nao for integrada, o middleware injeta o usuario de teste `2`.
 - Ampliada a validacao de niveis conhecidos conforme o banco: `super_admin`, `admin`, `gestor` e `operador`.
 
@@ -176,7 +213,7 @@ Preparar a IA para consumo pelo aplicativo mobile e manter a validacao de token 
 
 ### Implementacao do Redator
 - Adicionada `PERSONA_SISTEMA` em `app/prompts.py`, definindo a Trimmy como assistente objetiva e confiavel de apoio ao monitoramento de camaras frigorificas.
-- A persona e compartilhada pelos prompts de roteador, orquestrador, monitoramento, predicao, diagnostico, relatorios e FAQ.
+- A persona e compartilhada pelos prompts de roteador, orquestrador, monitoramento, diagnostico, relatorios e FAQ.
 - O roteador ja existente continua em `_rotear`, em `app/graph.py`, selecionando uma unica rota a partir de `ROTEADOR_PROMPT`.
 - Nao foi incluida instrucao de busca de memoria, pois nao ha tool de recuperacao de historico integrada ao grafo.
 

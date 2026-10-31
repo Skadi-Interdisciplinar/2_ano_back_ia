@@ -2,56 +2,25 @@ from unittest.mock import Mock
 
 import pytest
 from app import memory
+from app.erros import SessaoEmAlteracao
 
 
-@pytest.fixture
-def banco(monkeypatch):
-    banco = Mock()
-    banco.sessoes_trimmy.update_one.return_value.matched_count = 1
-    monkeypatch.setattr(memory, "_database", Mock(return_value=banco))
-    monkeypatch.setattr(memory, "iniciar_sessao", Mock(return_value={
-        "_id": "sessao-teste", "usuarioId": 2, "status": "aberta", "mensagens": [],
-    }))
-    return banco
+def test_salva_pergunta_e_resposta_na_mesma_sessao(monkeypatch):
+    colecao = Mock()
+    colecao.update_one.return_value.matched_count = 1
+    monkeypatch.setattr(memory, "_sessoes", Mock(return_value=colecao))
+
+    memory.salvar_turno_conversa(12, "sessao-1", "Qual a temperatura?", "4.00 °C")
+
+    filtro, alteracao = colecao.update_one.call_args.args
+    assert filtro["_id"] == "sessao-1"
+    assert [item["remetente"] for item in alteracao["$push"]["mensagens"]["$each"]] == ["usuario", "assistente"]
 
 
-def test_salvar_mensagem_cria_documento_de_conversa(banco):
-    memory.salvar_mensagem_conversa(2, "usuario", "oi", "texto")
+def test_rejeita_gravacao_quando_a_sessao_foi_fechada(monkeypatch):
+    colecao = Mock()
+    colecao.update_one.return_value.matched_count = 0
+    monkeypatch.setattr(memory, "_sessoes", Mock(return_value=colecao))
 
-    filtro, atualizacao = banco.sessoes_trimmy.update_one.call_args.args
-    assert filtro == {"_id": "sessao-teste", "usuarioId": 2, "status": "aberta"}
-    assert atualizacao["$push"]["mensagens"]["conteudo"] == "oi"
-    assert "agente" not in atualizacao["$push"]["mensagens"]
-    assert atualizacao["$unset"] == {"resumo": ""}
-    banco.sessoes_trimmy.update_one.assert_called_once()
-
-
-def test_salvar_mensagem_registra_agente_quando_informado(banco):
-    memory.salvar_mensagem_conversa(2, "assistente", "resposta", "texto", "orquestrador")
-
-    atualizacao = banco.sessoes_trimmy.update_one.call_args.args[1]
-    assert atualizacao["$push"]["mensagens"]["agente"] == "orquestrador"
-
-
-def test_carregar_contexto_retorna_apenas_ultimas_mensagens(monkeypatch):
-    mensagens = [{"conteudo": str(numero)} for numero in range(5)]
-    sessao = Mock(return_value={"usuarioId": 2, "mensagens": mensagens})
-    monkeypatch.setattr(memory, "iniciar_sessao", sessao)
-
-    assert memory.carregar_contexto_conversa(2, limite=2) == mensagens[-2:]
-    sessao.assert_called_once_with(2)
-
-
-def test_carregar_contexto_vazio_quando_nao_existe_conversa(monkeypatch):
-    monkeypatch.setattr(memory, "iniciar_sessao", Mock(return_value=None))
-
-    assert memory.carregar_contexto_conversa(2) == []
-
-
-def test_registrar_execucao_persiste_status(banco):
-    memory.registrar_execucao_agente("roteador", {"usuario_id": 2}, "concluido")
-
-    banco.execucoes_agentes.insert_one.assert_called_once()
-    documento = banco.execucoes_agentes.insert_one.call_args.args[0]
-    assert documento["agente"] == "roteador"
-    assert documento["status"] == "concluido"
+    with pytest.raises(SessaoEmAlteracao):
+        memory.salvar_turno_conversa(12, "sessao-1", "Pergunta", "Resposta")

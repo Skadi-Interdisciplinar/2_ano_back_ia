@@ -23,6 +23,17 @@ O Redis é lido em lotes de 1.000 eventos até encontrar as últimas leituras do
 sensores autorizados ou esgotar o stream, tanto para uma quanto para várias câmaras.
 O lote é técnico, não limite de validade; o horário não garante temperatura atual.
 
+A consulta não classifica a origem das leituras como simulada ou real nem gera
+aviso específico por essa origem. Valores e horários continuam sendo os retornados
+pelo Redis, sem alterações nos registros ou nas permissões.
+
+Validação da retirada: 361 testes unitários passaram, quatro integrações foram
+puladas e Ruff passou. Um teste isolado com o Groq real classificou “Qual a
+temperatura da camara 3?” como monitoramento e respondeu usando uma consulta
+Redis simulada, sem rejeição de tool nessa execução. Isso não comprova integração
+completa de `/chat` ou ausência de futuras rejeições; a persistência e os bancos
+reais não foram exercitados por esse teste.
+
 ## Cadastro e alertas
 
 listar_camaras_responsaveis usa a mesma consulta interna, mas não acessa o Redis.
@@ -32,6 +43,10 @@ ao modelo pelas tools de cadastro ou temperaturas.
 Alertas permanecem separados, com os filtros já aprovados para status, CD,
 nível do operador e reconhecimento pelo próprio usuário. Não houve ampliação
 de permissões nem mudança de esquema dos bancos.
+
+Os filtros usam os valores do backend em maiúsculas e sem acento: `ATIVO`,
+`RECONHECIDO` e `OPERADOR`. Gravidade, tipo e status retornados pelo banco são
+preservados; dados antigos não são convertidos silenciosamente pela consulta.
 
 O usuário vem do contexto interno, nunca de argumentos do LLM. SQL usa parâmetros.
 A autenticação continua mockada com usuário 2; não publicar esse bypass em produção.

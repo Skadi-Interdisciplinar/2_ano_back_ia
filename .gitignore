@@ -34,6 +34,9 @@ secrets.toml
 
 .pytest_cache/
 .coverage
+tmp/pdfs/
+output/pdf/exemplo_relatorio_skadi_*.pdf
+output/pdf/skadi-relatorio-corrigido-*.pdf
 
 .vscode/
 !.vscode/settings.json
