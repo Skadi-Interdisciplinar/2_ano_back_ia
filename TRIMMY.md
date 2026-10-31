@@ -30,7 +30,7 @@ autenticação JWT compatível com o backend principal. Commits locais; sem push
 | Integração mobile/backend | Pendente | Consumir contratos abaixo e encerrar sessão no aplicativo. Repositórios externos não alterados. |
 | Autenticação real | Implementada; validação com login real pendente | JWT assinado pelo backend, assinatura/expiração verificadas e username resolvido no banco. Requer a mesma SECURITY_KEY. |
 | Observabilidade sem restrição de cargo | Implementada | Todos os perfis cadastrados podem consultar, com cabeçalho Bearer. |
-| MCP/A2A | MCP local implementado e testado | Servidor stdio no padrão do Assessor; descoberta e duas consultas demonstradas por cliente MCP real. A2A não implementado. |
+| MCP/A2A | Pendente de nova definição | Servidor MCP de consultas removido por solicitação do usuário. Nenhum servidor MCP ou A2A está implementado atualmente. |
 | Retenção/tamanho de sessões | Pendente de política | Mensagens preservadas; definir retenção/rotação antes de uso prolongado. Não apagar histórico silenciosamente. |
 | Predição, reparos e ações automáticas | Fora do escopo | Predição removida. Não recriar treinamento ou tools de escrita operacional. |
 
@@ -65,9 +65,6 @@ flowchart TD
   PDF --> JuizPDF["Juiz textual e visual"]
   JuizPDF --> Auditoria["Hash e auditoria PostgreSQL"]
   API --> Metricas["Metricas usuario cadastrado"]
-  ClienteMCP["Cliente MCP local"] --> ServidorMCP["Servidor stdio e JWT por chamada"]
-  ServidorMCP --> ToolsMCP["Tools de monitoramento existentes"]
-  ToolsMCP --> Dados
 ```
 
 ## Contratos e permissões
@@ -117,90 +114,6 @@ de referência; não afirmam cobrança efetiva ou economia comprovada.
 Especialistas e juiz usam timeout de 30 segundos por chamada e zero retries
 automáticos do SDK; agentes têm até 25 passos. São limites de execução, não de
 sensores. Cada geração de PDF usa uma chamada multimodal para todas as páginas.
-
-## MCP local no padrão do Assessor
-
-`app/mcp_server.py` segue a organização do arquivo equivalente do Assessor:
-instância `MCPServer`, registro por `@mcp.tool`, anotações de leitura e transporte
-`stdio`. Os adaptadores chamam as tools LangChain existentes com `.invoke()`;
-não duplicam SQL, permissões ou regras de negócio. A dependência `mcp>=2.2,<3`
-está declarada no manifesto, compatível com o SDK 2.2.0 usado no teste.
-
-| Tool exposta | Consulta reutilizada |
-| --- | --- |
-| `listar_camaras_responsaveis` | Cadastro e limites de câmaras permitidas; filtros opcionais por ID informado, modelo ou localização. |
-| `consultar_temperaturas` | Últimas leituras e limites de uma seleção ou de todas as câmaras permitidas, com os mesmos filtros e esclarecimentos da API. |
-| `consultar_alertas_atuais_do_usuario` | Alertas ativos permitidos ou reconhecidos pelo próprio usuário, conforme o escopo atual. |
-
-Não há tools de escrita, emissão de tokens, administração ou SQL livre. As
-respostas são dados de consulta, não respostas conversacionais julgadas pelo
-LLM; o servidor MCP não executa o grafo, não aciona modelos e não gera despesas
-de inferência por conta própria. O aplicativo de IA que o consumir pode ter
-custos próprios. O transporte local não cria endpoint HTTP na FastAPI e não
-altera os contratos do mobile.
-
-### Identidade e configuração do cliente MCP
-
-Cada processo stdio atende ao usuário do JWT configurado em `TRIMMY_MCP_TOKEN`.
-O token não é argumento da tool, não fica no prompt e não escolhe um ID fixo.
-É verificado pela autenticação JWT existente em cada chamada; as consultas
-revalidam o escopo no banco. Expiração, revogação por exclusão do usuário ou
-falha de serviços impede a consulta. O contexto é restaurado mesmo em caso de
-erro. Token expirado exige novo login e reinício do processo MCP com o novo
-valor. Não compartilhar esse processo entre usuários diferentes.
-
-Use a mesma `SECURITY_KEY` do backend e a conexão PostgreSQL da Trimmy. Instale
-`pip install -r requirements.txt`. O cliente MCP deve iniciar, na raiz do projeto:
-
-```powershell
-python -m app.mcp_server
-```
-
-Esse comando fica aguardando comunicação pelo protocolo, não exibe uma página
-ou uma resposta de chat no terminal. Normalmente o cliente inicia e encerra o
-processo automaticamente. Não usar stdout para logs: ele transporta o protocolo.
-
-Exemplo genérico de configuração para clientes com formato `mcpServers`:
-
-```json
-{
-  "mcpServers": {
-    "trimmy-monitoramento": {
-      "command": "C:/caminho/do/ambiente/Scripts/python.exe",
-      "args": ["-m", "app.mcp_server"],
-      "cwd": "C:/Users/marianaproque-ieg/Skadi/IA/2_ano_back_ia",
-      "env": {
-        "TRIMMY_MCP_TOKEN": "JWT_REAL_OBTIDO_NO_LOGIN"
-      }
-    }
-  }
-}
-```
-
-Substitua o executável pelo Python com as dependências instaladas. Use o token
-no ambiente privado do cliente ou no `.env` local, nunca em arquivo versionado.
-O host MCP deve tratar esse valor como segredo. A configuração exata depende
-do cliente; esse exemplo não registra automaticamente um servidor no Codex nem
-em outros aplicativos. A operação por HTTP remoto/OAuth não faz parte desta entrega.
-
-### Evidência de integração MCP
-
-Em 30/10/2026, um cliente do SDK MCP iniciou um subprocesso stdio real,
-descobriu as três tools e executou `listar_camaras_responsaveis` e
-`consultar_alertas_atuais_do_usuario` contra o banco `skadi`. As duas chamadas
-retornaram `is_error=false`. Foi usado JWT temporário assinado para o usuário
-de teste existente; o token não foi impresso ou persistido. Não houve chamada
-ao LLM, escrita operacional ou modificação no Assessor. Isso demonstra o
-protocolo e a consulta autorizada, não a homologação do login mobile nem de um
-host de IA específico. O uso da tool de temperaturas também depende do Redis.
-
-A suíte passou com 181 testes unitários e Ruff aprovado. Os sete testes em
-`tests/test_mcp_server.py` verificam descoberta, anotações de leitura, ausência
-de argumentos de identidade, reuso das tools, JWT ausente/expirado, erros
-sanitizados e restauração do contexto. JWT e autorização das consultas têm
-cobertura própria nos módulos existentes.
-
-Referência do protocolo e transporte: [MCP Python SDK — transports](https://py.sdk.modelcontextprotocol.io/client/transports/).
 
 ## Complexidade do projeto e demonstração da demanda de IA
 
@@ -394,7 +307,7 @@ O exemplo “câmara 3” só pode ser usado se essa câmara estiver no escopo d
 | Longo prazo | Conversar, encerrar em `/chat/encerrar`, iniciar outra conversa e perguntar por informação do assunto anterior. | Resumo no MongoDB/Qdrant e recuperação filtrada pelo usuário, sem usar memória como dado operacional. |
 | Relatório | Gerar PDF pelo endpoint com período e seleção autorizados. | Indicadores contra o snapshot, páginas completas, aprovação, hash e auditoria dos bytes finais. |
 | Observabilidade | Consultar `/observabilidade` depois das interações. | Latências, erros, tokens, custos, cenários e ROI com premissas visíveis. |
-| MCP | Iniciar um cliente stdio, listar tools e chamar cadastro ou alertas com JWT válido. | Descoberta e chamadas pelo protocolo, com o escopo do usuário; uma chamada HTTP do mobile não é essa demonstração. |
+| MCP/A2A | Implementação anterior removida; nova proposta ainda não implementada. | O requisito volta a ficar pendente; chamadas HTTP do mobile não demonstram MCP/A2A. |
 
 Os testes unitários seguem preparação, execução e verificação com Mock/MagicMock
 e asserts diretos, incluindo exceções esperadas. Cobrem contratos, escopo,
@@ -419,9 +332,49 @@ equipamentos e não decide segurança dos produtos. Predição foi removida e n�
 deve ser apresentada como funcionalidade. Não há promessa de erro zero,
 disponibilidade ilimitada ou economia comprovada.
 
-Para fechar a demanda integralmente, ainda são necessários: configurar o MCP no
-cliente escolhido para a apresentação; integrar o mobile, incluindo login, consumo dos endpoints
+Para fechar a demanda integralmente, ainda são necessários: definir e implementar
+o novo MCP; alinhar a autorização de ADMIN e o schema ao backend Java; integrar o
+mobile, incluindo login, consumo dos endpoints
 e encerramento da sessão; homologar o JWT emitido pelo login real; e executar
 o roteiro integrado com evidências da versão entregue. O desenho de arquitetura
 e esta justificativa documentam a complexidade já implementada, mas não
 transformam essas pendências em requisitos concluídos.
+
+## Validação de autenticação e autorização — 30/10/2026
+
+A revisão distingue identidade (JWT) de autorização (quais dados podem ser lidos).
+A assinatura HMAC, o subject com username e as datas seguem o TokenProvider do
+backend principal. Há testes de assinatura, expiração, claims e usuário inexistente;
+ainda não foi homologado um token obtido pelo login real do backend.
+
+Foi confirmada uma divergência na autorização de ADMIN:
+
+| Perfil | Backend Java em main | Trimmy atual |
+| --- | --- | --- |
+| SUPER_ADMIN, leitura | Acesso global. | Acesso global. |
+| ADMIN, leitura | CDs vinculados por `tb_admin_cd.cod_admin` e `tb_admin_cd.cod_cd`. | Filtro por `tb_usuario.cod_cd`, sem consultar o relacionamento. |
+| GESTOR/OPERADOR, leitura de câmaras | CD do usuário. | CD do usuário. |
+
+Fontes conferidas no repositório `Skadi-Interdisciplinar/2_ano_backend`:
+`DistributionCenterAccessService.java`, `AdminDistributionCenter.java` e
+`AdminDistributionCenterRepository.java`. A comparação desta tabela trata do
+escopo por CD; não comprova equivalência de todos os filtros de alerta, políticas
+de escrita ou comportamentos dos endpoints.
+
+O banco `skadi` configurado foi consultado: `public.tb_admin_cd` não existe.
+O usuário de teste 12 tem perfil ADMIN e `cod_cd=5`. Não é possível verificar
+quais seriam seus CDs autorizados pelo Java sem a tabela e os vínculos oficiais.
+A Trimmy pode restringir indevidamente CDs associados ou permitir um CD que o
+Java não permitiria. Não considerar autorização equivalente ou homologada.
+
+A divergência alcança cadastro/temperaturas e alertas em
+`app/tools/monitoramento.py`, evidências de diagnóstico que reutilizam essas
+consultas e seleção/revalidação de relatórios em `app/relatorios.py`.
+O JWT identifica corretamente o usuário, mas não corrige esses filtros.
+
+Nenhuma tabela, vínculo, regra de negócio ou permissão foi alterada nesta revisão.
+O próximo ajuste exige confirmar e implantar a estrutura oficial ADMIN–CD e
+alinhar a autorização a uma fonte comum do backend, sem fallback para `cod_cd`
+quando o relacionamento não existir. O MCP anterior foi removido, junto das
+configurações, dependência direta e testes específicos; pode ser recuperado
+pelo histórico Git. Não foi implementado o novo MCP de gestão de incidentes.

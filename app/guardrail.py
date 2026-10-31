@@ -56,7 +56,6 @@ def _segredos_configurados() -> tuple[str, ...]:
     return tuple(valor for valor in (
         config.GEMINI_API_KEY, config.GROQ_API_KEY, config.QDRANT_API_KEY,
         config.DATABASE_URL, config.MONGODB_URI, config.REDIS_URL, config.SECURITY_KEY,
-        config.TRIMMY_MCP_TOKEN,
     ) if isinstance(valor, str) and valor)
 
 

@@ -19,7 +19,6 @@ ROI_TEMPO_MANUAL_MINUTOS = os.getenv("ROI_TEMPO_MANUAL_MINUTOS")
 ROI_CUSTO_HORA_USD = os.getenv("ROI_CUSTO_HORA_USD")
 
 SECURITY_KEY = os.getenv("SECURITY_KEY")
-TRIMMY_MCP_TOKEN = os.getenv("TRIMMY_MCP_TOKEN")
 
 # Somente a configuração vetorial pode vir do ambiente de referência.
 _assessor_env = os.getenv("ASSESSOR_ENV_FILE")
