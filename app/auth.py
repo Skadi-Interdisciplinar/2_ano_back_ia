@@ -4,17 +4,30 @@ from __future__ import annotations
 
 from contextlib import closing
 from dataclasses import dataclass
+from typing import Annotated
 
 import jwt
 from app import config
 from app.erros import ServicoIndisponivel
 from app.tools.db import get_conn
-from fastapi import HTTPException
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+autenticacao_bearer = HTTPBearer(auto_error=False)
 
 
 @dataclass(frozen=True)
 class AuthenticatedUser:
     usuario_id: int
+
+
+def usuario_bearer(
+    credenciais: Annotated[HTTPAuthorizationCredentials | None, Depends(autenticacao_bearer)],
+) -> AuthenticatedUser:
+    if credenciais is None or credenciais.scheme.lower() != "bearer" or not credenciais.credentials.strip():
+        raise HTTPException(401, "Informe o JWT do login em Authorization: Bearer <JWT>. No Swagger, use Authorize.",
+                            headers={"WWW-Authenticate": "Bearer"})
+    return obter_usuario_autenticado(credenciais.credentials.strip())
 
 
 def obter_usuario_autenticado(token: str) -> AuthenticatedUser:

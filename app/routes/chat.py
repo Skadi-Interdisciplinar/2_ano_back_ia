@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from app.auth import obter_usuario_autenticado
+from typing import Annotated
+
+from app.auth import AuthenticatedUser, usuario_bearer
 from app.graph import executar_fluxo_skadi
 from app.memory import encerrar_sessao
-from app.schemas import ChatRequest, ChatResponse, EncerrarChatRequest, EncerrarChatResponse
-from fastapi import APIRouter
+from app.schemas import ChatRequest, ChatResponse, EncerrarChatResponse
+from fastapi import APIRouter, Depends
 
 router = APIRouter(tags=["trimmy"])
 
@@ -18,8 +20,7 @@ router = APIRouter(tags=["trimmy"])
         503: {"description": "Infraestrutura ou provedor indisponível."},
     },
 )
-def encerrar(requisicao: EncerrarChatRequest) -> EncerrarChatResponse:
-    usuario = obter_usuario_autenticado(requisicao.token)
+def encerrar(usuario: Annotated[AuthenticatedUser, Depends(usuario_bearer)]) -> EncerrarChatResponse:
     return EncerrarChatResponse(resumo=encerrar_sessao(usuario.usuario_id))
 
 
@@ -33,8 +34,7 @@ def encerrar(requisicao: EncerrarChatRequest) -> EncerrarChatResponse:
         503: {"description": "Infraestrutura ou provedor indisponível."},
     },
 )
-def conversar(requisicao: ChatRequest) -> ChatResponse:
-    usuario = obter_usuario_autenticado(requisicao.token)
+def conversar(requisicao: ChatRequest, usuario: Annotated[AuthenticatedUser, Depends(usuario_bearer)]) -> ChatResponse:
 
     resposta, agentes = executar_fluxo_skadi(
         requisicao.mensagem,

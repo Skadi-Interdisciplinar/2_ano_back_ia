@@ -1,7 +1,7 @@
 from unittest.mock import Mock
 
 import pytest
-from app import observabilidade
+from app import auth, observabilidade
 from app.auth import AuthenticatedUser
 from app.routes import observabilidade as rota_observabilidade
 from app.schemas import ObservabilidadeResponse
@@ -98,7 +98,7 @@ def test_painel_calcula_metricas_dos_turnos_persistidos(monkeypatch):
 
 def test_super_admin_consulta_observabilidade(monkeypatch):
     monkeypatch.setattr(
-        rota_observabilidade,
+        auth,
         "obter_usuario_autenticado",
         Mock(return_value=AuthenticatedUser(1)),
     )
@@ -134,7 +134,7 @@ def test_endpoint_exige_bearer_antes_de_consultar_bancos(monkeypatch):
 @pytest.mark.parametrize("nivel", ["GESTOR", "ADMIN", "OPERADOR"])
 def test_perfis_consultam_observabilidade_sem_bloqueio_de_cargo(monkeypatch, nivel):
     monkeypatch.setattr(
-        rota_observabilidade,
+        auth,
         "obter_usuario_autenticado",
         Mock(return_value=AuthenticatedUser(12)),
     )
@@ -147,7 +147,7 @@ def test_perfis_consultam_observabilidade_sem_bloqueio_de_cargo(monkeypatch, niv
     painel = _painel_vazio()
     monkeypatch.setattr(rota_observabilidade, "painel_mobile", Mock(return_value=painel))
 
-    assert rota_observabilidade.consultar_observabilidade(token="teste") == painel
+    assert rota_observabilidade.consultar_observabilidade(usuario=AuthenticatedUser(12)) == painel
 
 
 def test_rota_de_observabilidade_declara_contrato_mobile():

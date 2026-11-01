@@ -43,6 +43,22 @@ def test_token_malformado_nao_consulta_banco(conexao, token):
     conexao.cursor.assert_not_called()
 
 
+@pytest.mark.parametrize("rota", ["/chat", "/chat/encerrar", "/relatorios/pdf", "/observabilidade"])
+def test_endpoints_exigem_bearer_sem_acessar_banco(conexao, rota):
+    from app.main import app
+    from fastapi.testclient import TestClient
+
+    cliente = TestClient(app)
+    corpo = {"mensagem": "oi"} if rota == "/chat" else {
+        "data_inicial": "2026-10-01", "data_final": "2026-10-30",
+    }
+    resposta = cliente.get(rota) if rota == "/observabilidade" else cliente.post(rota, json=corpo)
+
+    assert resposta.status_code == 401
+    assert resposta.headers["www-authenticate"] == "Bearer"
+    conexao.cursor.assert_not_called()
+
+
 def test_token_expirado_pede_novo_login(conexao):
     with pytest.raises(HTTPException) as erro:
         auth.obter_usuario_autenticado(_token(iat=int(time()) - 120, exp=int(time()) - 60))
@@ -118,12 +134,12 @@ def test_endpoints_rejeitam_token_falso_com_401_sem_consultar_banco(conexao, rot
     if rota == "/observabilidade":
         resposta = cliente.get(rota, headers={"Authorization": "Bearer teste"})
     else:
-        corpo = {"token": "teste"}
+        corpo = {}
         if rota == "/chat":
             corpo["mensagem"] = "oi"
         elif rota == "/relatorios/pdf":
             corpo.update(data_inicial="2026-10-01", data_final="2026-10-30")
-        resposta = cliente.post(rota, json=corpo)
+        resposta = cliente.post(rota, json=corpo, headers={"Authorization": "Bearer teste"})
 
     assert resposta.status_code == 401
     assert resposta.headers["www-authenticate"] == "Bearer"

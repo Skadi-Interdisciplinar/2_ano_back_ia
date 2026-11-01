@@ -1,8 +1,9 @@
 """Download por botão do mobile; não participa do grafo conversacional."""
 
 import logging
+from typing import Annotated
 
-from app.auth import obter_usuario_autenticado
+from app.auth import AuthenticatedUser, usuario_bearer
 from app.erros import SaidaModeloInvalida, ServicoIndisponivel
 from app.relatorios import (
     DadosRelatorioInvalidos,
@@ -11,7 +12,7 @@ from app.relatorios import (
     gerar_relatorio_pdf,
 )
 from app.schemas import RelatorioRequest
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
@@ -29,7 +30,7 @@ class RotaRelatorio(APIRoute):
             try:
                 return await handler(request)
             except RequestValidationError:
-                return JSONResponse(status_code=422, content={"detail": "Confira o token, os IDs e as datas do relatório. Use datas no formato AAAA-MM-DD, com a data inicial anterior ou igual à final."})
+                return JSONResponse(status_code=422, content={"detail": "Confira os IDs e as datas do relatório. Use datas no formato AAAA-MM-DD, com a data inicial anterior ou igual à final."})
 
         return validar_sem_expor_corpo
 
@@ -51,8 +52,7 @@ router = APIRouter(tags=["relatorios"], route_class=RotaRelatorio)
         503: {"description": "Banco de dados indisponível."},
     },
 )
-def baixar_relatorio(requisicao: RelatorioRequest) -> Response:
-    usuario = obter_usuario_autenticado(requisicao.token)
+def baixar_relatorio(requisicao: RelatorioRequest, usuario: Annotated[AuthenticatedUser, Depends(usuario_bearer)]) -> Response:
     try:
         pdf = gerar_relatorio_pdf(usuario.usuario_id, requisicao)
     except PermissionError:

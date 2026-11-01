@@ -16,7 +16,6 @@ class DecisaoRota(BaseModel):
 
 class RelatorioRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-    token: str = Field(min_length=1, max_length=10_000, repr=False)
     cd_id: int | None = Field(default=None, gt=0, strict=True)
     camara_id: int | None = Field(default=None, gt=0, strict=True)
     data_inicial: date
@@ -39,14 +38,13 @@ class RelatorioRequest(BaseModel):
 class ChatRequest(BaseModel):
     """Mensagem recebida pelo endpoint de chat.
 
-    O token é o JWT emitido pelo backend principal, validado antes do fluxo.
+    A identidade vem do JWT no cabeçalho Authorization, antes do fluxo.
     """
 
-    token: str = Field(min_length=1, max_length=10_000)
     mensagem: str = Field(min_length=1, max_length=10_000)
     model_config = ConfigDict(extra="forbid")
 
-    @field_validator("token", "mensagem")
+    @field_validator("mensagem")
     @classmethod
     def texto_obrigatorio(cls, valor: str) -> str:
         valor = valor.strip()
@@ -67,11 +65,6 @@ class ChatResponse(BaseModel):
         # Marcadores junto ao texto; asteriscos separados por espaços podem ser multiplicação.
         valor = re.sub(r"(?<!\w)\*([^\W\d_](?:[^*\n]*[^\s*])?)\*(?!\w)", r"\1", valor)
         return " ".join(valor.split())
-
-
-class EncerrarChatRequest(BaseModel):
-    token: str = Field(min_length=1, max_length=10_000)
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
 class EncerrarChatResponse(BaseModel):
