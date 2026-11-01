@@ -56,14 +56,26 @@ def test_mongodb_esta_acessivel():
     assert resultado["ok"] == 1.0
 
 
-def test_modelo_esta_acessivel():
+@pytest.mark.parametrize("provedor", ["gemini", "groq"])
+def test_modelo_esta_acessivel(provedor):
     """Faz uma chamada curta ao modelo configurado, sem acessar dados do Skadi."""
 
     if not GEMINI_API_KEY or not GROQ_API_KEY:
         pytest.fail("GEMINI_API_KEY e GROQ_API_KEY precisam estar configuradas.")
     from app.llms import obter_modelos
 
-    modelo, _ = obter_modelos()
+    principal, groq = obter_modelos()
+    modelo = principal.runnable if provedor == "gemini" else groq
     resposta = modelo.invoke("Responda somente com a palavra PONG.")
 
     assert str(resposta.content).strip()
+
+
+def test_qdrant_possui_base_tecnica_indexada():
+    from app.regras_diagnostico import COLLECTION_DIAGNOSTICO
+    from app.vectorstore import EMBEDDING_DIM, cliente_qdrant
+
+    colecao = cliente_qdrant().get_collection(COLLECTION_DIAGNOSTICO)
+
+    assert colecao.config.params.vectors.size == EMBEDDING_DIM
+    assert colecao.points_count > 0

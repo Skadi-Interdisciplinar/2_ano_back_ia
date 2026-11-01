@@ -1,14 +1,15 @@
 # Relatórios PDF por botão do mobile
 
 `POST /relatorios/pdf` é um serviço determinístico, não um agente do chat.
-Não usa LLM, RAG, Redis, MongoDB ou Qdrant. A antiga rota conversacional
+Os dados e cálculos usam PostgreSQL; o juiz usa LLM para validar conteúdo e
+design após renderizar. Não usa RAG, Redis, MongoDB ou Qdrant para os dados.
+A antiga rota conversacional
 `relatorios` foi removida; o chat orienta o uso do botão do aplicativo.
 
 ## Requisição
 
 ```json
 {
-  "token": "token-do-aplicativo",
   "cd_id": 1,
   "camara_id": null,
   "data_inicial": "2026-10-01",
@@ -16,8 +17,11 @@ Não usa LLM, RAG, Redis, MongoDB ou Qdrant. A antiga rota conversacional
 }
 ```
 
-GESTOR pode omitir `cd_id`: o cadastro determina seu CD. Se enviado, precisa
-ser o mesmo. SUPER_ADMIN precisa escolher um CD; ADMIN e OPERADOR são bloqueados.
+JWT obrigatório em `Authorization: Bearer <JWT>`, fora do corpo.
+GESTOR e OPERADOR podem omitir `cd_id`: o cadastro determina seu CD. Se enviado,
+precisa ser o mesmo. ADMIN e SUPER_ADMIN precisam escolher um CD; ADMIN somente
+entre seus vínculos em `tb_admin_cd`. Não há bloqueio por cargo
+na geração; o acesso permanece limitado às câmaras do escopo autorizado.
 `camara_id: null` seleciona todas as câmaras desse CD. Uma identificação inválida
 não amplia o filtro. O corpo não aceita usuário, permissões ou dados calculados.
 
@@ -64,38 +68,43 @@ Não houve mudança nos cálculos, autorização ou registro transacional.
 ## Entrega e auditoria
 
 Depois de renderizar, o serviço reconfere o perfil/CD e registra em uma única
-transação `tb_relatorio` com usuário, datas, SHA-256 dos bytes e status `GERADO`,
-e `tb_log_acesso_relatorio` com ação `BAIXOU`. Os valores seguem o backend e o
-schema versionado, em maiúsculas e sem acento. Bancos antigos com valores em
-minúsculas precisam ser alinhados separadamente; esta alteração não migra registros
-nem modifica constraints ou triggers.
+transação `tb_relatorio` com usuário, datas, SHA-256 dos bytes, texto extraído de
+todas as páginas do PDF aprovado no campo `conteudo` e status `GERADO`,
+e `tb_log_acesso_relatorio` com ação `BAIXOU`. O status persistido é `GERADO`.
+As constraints implantadas foram conferidas nesta revisão e aceitam esses
+valores em maiúsculas no banco `skadi`. A identidade é definida com
+`set_config('app.usuario_atual', ..., true)` na mesma transação para o trigger
+de auditoria; não vem do texto gerado pelo modelo. Não são executadas migrations
+nem alteradas constraints. PDF sem texto extraível não é registrado.
 Falha causa rollback e nenhum PDF é entregue. Essa operação não modifica alertas
 ou leituras. `BAIXOU` registra disponibilização pela API, não recebimento no celular.
 Uma desconexão ou falha de rede depois do commit pode deixar o registro sem que
 o cliente receba o arquivo. Não há transação distribuída com o dispositivo.
 
-Cada chamada gera outro relatório. Não existe cópia persistente do arquivo ou
+Cada chamada gera outro relatório. O conteúdo textual fica persistido conforme
+aprovação do usuário em 30/10/2026. Não existe cópia persistente do arquivo PDF ou
 endpoint para recuperar o mesmo PDF; os metadados atuais não guardam CD/câmara
 nem permitem reproduzir todos os filtros. Não foram criadas tabelas ou migrations.
 
 Sucesso: `application/pdf`, `Content-Disposition: attachment` e
 `Cache-Control: no-store`. Nome gerado pelo servidor a partir das datas.
 Erros: 403 acesso; 404 seleção; 409 dados inconsistentes; 422 filtros;
-503 banco; 500 falha inesperada. Erros de validação desse endpoint não repetem
-o corpo recebido (que contém token). Logs não incluem tokens, SQL ou mensagens
+502 reprovação/veredito inválido; 503 banco/provedor indisponível; 500 falha inesperada. Erros de validação desse endpoint não repetem
+o corpo recebido. Logs não incluem tokens, SQL ou mensagens
 brutas de SDKs. A rota de chat mantém seu contrato anterior.
 
 ## Uso e testes
 
 Instale `pip install -r requirements.txt`; o manifesto inclui ReportLab em
-produção e pypdf nos testes. Inicie `uvicorn app.main:app --reload` e abra `/docs`.
+produção, além de pypdf, PDFium e Pillow usados pelo juiz. Inicie `uvicorn app.main:app --reload` e abra `/docs`.
 No aplicativo, leia a resposta como bytes/blob para o download, não como JSON.
 
-A autenticação usa o mock central de usuário 12, conferido como GESTOR do CD 2
-no banco de teste. Qualquer token não muda sua identidade; a escolha vale também
-para o chat. Omita `cd_id` ou envie 2. Se o cadastro ou perfil mudar, a validação
-do banco prevalece e poderá retornar 403. Nenhuma permissão foi alterada.
-Produção exige a autenticação real do aplicativo.
+A autenticação valida o JWT emitido pelo login do backend principal, usando a
+mesma `SECURITY_KEY`. Envie o JWT em `Authorization: Bearer <JWT>`, nunca no corpo.
+O username do token é resolvido no PostgreSQL; ID, perfil e CD não são aceitos
+do cliente como identidade. Token inválido ou expirado retorna 401 antes de
+consultar ou gerar o relatório. GESTOR/OPERADOR usam o CD do cadastro; ADMIN/SUPER_ADMIN devem escolher
+um CD explicitamente. Não existe usuário de teste fixo nem fallback de autenticação.
 
 Os testes usam mocks e PDFs em memória, sem chamadas a bancos/provedores.
 Incluem permissões, fronteiras de datas no SQL, indicadores, filtros, saída

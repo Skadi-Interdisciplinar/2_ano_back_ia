@@ -41,8 +41,7 @@ class BuscarRegrasArgs(BaseModel):
 
 @tool("consultar_evidencias_diagnostico", args_schema=ConsultarEvidenciasArgs)
 def consultar_evidencias_diagnostico(
-    camara_id: int | None = None, modelo: str | None = None,
-    localizacao: str | None = None, alerta_id: int | None = None,
+    camara_id: int | None = None, localizacao: str | None = None, alerta_id: int | None = None,
     ultimo_alerta: bool = False,
 ) -> dict:
     """Reúne dados permitidos de uma única câmara e justificativas da ocorrência selecionada."""
@@ -54,15 +53,15 @@ def consultar_evidencias_diagnostico(
     referencia = str(uuid4())
     dados: dict = {"referencia": referencia, "status": "identificacao_necessaria", "opcoes": []}
     dados["ultimo_alerta_solicitado"] = ultimo_alerta
-    if all(v is None for v in (camara_id, modelo, localizacao)):
-        dados["mensagem"] = "Qual câmara deseja analisar? Informe modelo ou localização."
+    if all(v is None for v in (camara_id, localizacao)):
+        dados["mensagem"] = "Qual câmara deseja analisar? Informe ID ou localização."
     else:
-        camaras = consultar_camaras_permitidas(usuario, camara_id, modelo, localizacao)
+        camaras = consultar_camaras_permitidas(usuario, camara_id, localizacao)
         if not camaras:
             dados.update(status="nao_encontrada", mensagem="Câmara não encontrada no escopo permitido.")
         elif len(camaras) != 1:
             dados.update(
-                status="camara_ambigua", mensagem="Há mais de uma câmara. Qual modelo/localização deseja analisar?",
+                status="camara_ambigua", mensagem="Há mais de uma câmara. Qual ID/localização deseja analisar?",
                 opcoes=[_cadastro_publico(c) for c in camaras],
             )
         else:
@@ -143,7 +142,7 @@ def buscar_regras_diagnostico(busca: str) -> list[dict]:
     usuario = obter_usuario_contexto()
     contexto = obter_contexto_diagnostico()
     escopo = validar_acesso(usuario)
-    if escopo.nivel_acesso != "SUPER_ADMIN" and escopo.cd_id is None:
+    if escopo.nivel_acesso != "SUPER_ADMIN" and not escopo.cds_permitidos:
         raise PermissionError("Usuário sem escopo de diagnóstico.")
     regras = recuperar_regras(busca)
     contexto.regras_consultadas = True

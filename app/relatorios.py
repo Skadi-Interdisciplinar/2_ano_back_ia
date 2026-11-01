@@ -6,6 +6,7 @@ from datetime import datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
 from hashlib import sha256
 from time import perf_counter
+from unicodedata import normalize
 
 from app.erros import SaidaModeloInvalida
 from app.juiz import julgar_pdf
@@ -27,15 +28,23 @@ class DadosRelatorioInvalidos(ValueError):
     pass
 
 
+def _gravidade_critica(gravidade: object) -> bool:
+    """Compara a gravidade para o indicador sem alterar o valor exibido."""
+    texto = normalize("NFD", str(gravidade)).encode("ascii", "ignore").decode().upper()
+    return texto == "CRITICA"
+
+
 def _cd_permitido(escopo, cd_id: int | None) -> int:
-    if escopo.nivel_acesso == "SUPER_ADMIN":
+    if escopo.nivel_acesso in {"SUPER_ADMIN", "ADMIN"}:
         if cd_id is None:
             raise FiltroRelatorioInvalido("Informe o CD para gerar o relatório.")
+        if not escopo.permite_cd(cd_id):
+            raise PermissionError("CD fora do escopo permitido.")
         return cd_id
-    if escopo.nivel_acesso != "GESTOR" or escopo.cd_id is None:
-        raise PermissionError("Perfil sem acesso aos relatórios.")
+    if escopo.cd_id is None:
+        raise PermissionError("Seu usuário não possui um centro de distribuição vinculado para gerar relatórios.")
     if cd_id is not None and cd_id != escopo.cd_id:
-        raise PermissionError("CD não permitido.")
+        raise PermissionError("Você só pode gerar relatórios do centro de distribuição vinculado ao seu usuário.")
     return escopo.cd_id
 
 
@@ -54,7 +63,7 @@ def consultar_dados_relatorio(usuario_id: int, filtros: RelatorioRequest) -> dic
                 raise SelecaoRelatorioNaoEncontrada("Seleção não encontrada no escopo permitido.")
             camaras = _selecionar_camaras(
                 escopo, FiltrosCamaraArgs(camara_id=filtros.camara_id), cursor=cursor,
-                cd_id=cd_id if escopo.nivel_acesso == "SUPER_ADMIN" else None,
+                cd_id=cd_id,
             )
             if not camaras:
                 raise SelecaoRelatorioNaoEncontrada("Seleção não encontrada no escopo permitido.")
@@ -97,22 +106,30 @@ def consultar_dados_relatorio(usuario_id: int, filtros: RelatorioRequest) -> dic
         "primeira_leitura": min(l[2] for l in leituras) if leituras else None,
         "ultima_leitura": max(l[2] for l in leituras) if leituras else None,
         "total_alertas": len(alertas),
-        "ocorrencias_criticas": sum(a[4] == "CRITICA" for a in alertas),
+        "ocorrencias_criticas": sum(_gravidade_critica(a[4]) for a in alertas),
     }
 
 
 def registrar_relatorio(usuario_id: int, dados: dict, pdf: bytes) -> None:
     """Registra disponibilização, não comprova recebimento ou salvamento no mobile."""
+    from io import BytesIO
+
+    from pypdf import PdfReader
+
+    conteudo = "\n\n".join(pagina.extract_text() or "" for pagina in PdfReader(BytesIO(pdf)).pages)
+    if not conteudo.strip():
+        raise DadosRelatorioInvalidos("O PDF aprovado não contém texto extraível para registro.")
     with closing(get_conn()) as conexao:
         try:
             with conexao.cursor() as cursor:
                 # A renderização não mantém transação aberta; reconferir o acesso.
                 _cd_permitido(validar_acesso(usuario_id, cursor=cursor), dados["cd_id"])
+                cursor.execute("SELECT set_config('app.usuario_atual', %s, true)", (str(usuario_id),))
                 cursor.execute(
                     "INSERT INTO tb_relatorio "
-                    "(cod_usuario_gerador, periodo_inicio, periodo_fim, hash_conteudo, status) "
-                    "VALUES (%s, %s, %s, %s, %s) RETURNING id",
-                    (usuario_id, dados["data_inicial"], dados["data_final"], sha256(pdf).hexdigest(), "GERADO"),
+                    "(cod_usuario_gerador, periodo_inicio, periodo_fim, hash_conteudo, status, conteudo) "
+                    "VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+                    (usuario_id, dados["data_inicial"], dados["data_final"], sha256(pdf).hexdigest(), "GERADO", conteudo),
                 )
                 relatorio_id = cursor.fetchone()[0]
                 cursor.execute(

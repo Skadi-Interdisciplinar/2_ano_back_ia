@@ -1,14 +1,38 @@
 # Juiz da Trimmy
 
+Validação real em 30/10/2026: relatório de 30/09/2026 a 30/10/2026, nove páginas,
+577 leituras e 144 alertas. Uma chamada ao `gemini-3.5-flash-lite` aprovou os
+seis critérios, incluindo referências a todas as páginas. Execução direta:
+31,51 segundos. Teste posterior via `POST /relatorios/pdf`: HTTP 200, tipo
+`application/pdf`, assinatura `%PDF` e auditoria normal executada. A sequência
+com consulta à observabilidade levou 46,78 segundos. São medições observadas,
+não garantia de latência nem aprovação de todo relatório futuro.
+
+O modelo 2.5 Flash-Lite foi tentado na investigação, mas o provedor retornou
+404 para novos usuários e indicou o 3.5 Flash-Lite como substituto. Não há
+fallback automático. Os registros antigos abaixo descrevem versões anteriores.
+
 O chat passa pelo juiz após o orquestrador e o guardrail de saída, antes de salvar
 o turno. O PDF passa pela avaliação textual e visual antes do hash, da auditoria
 e do download. Não há tools, novos bancos, consultas duplicadas ou treinamento.
 
 ## Modelos e configuração
 
-O juiz textual usa `openai/gpt-oss-120b` no Groq, diferente do Gemini e do
-GPT-OSS 20B dos especialistas. O visual usa Gemini 2.5 Flash. Clientes separados,
-cacheados, temperatura zero, timeout de 30 segundos e zero retries automáticos.
+O juiz do chat usa `openai/gpt-oss-120b` no Groq, diferente do Gemini e do
+GPT-OSS 20B dos especialistas. O PDF usa `gemini-3.5-flash-lite` em uma única
+chamada multimodal por geração, reunindo conteúdo e apresentação de todas as
+páginas. Texto extraído, imagens individuais na ordem original, design e dados
+do snapshot são enviados juntos. Os seis critérios são obrigatórios; o critério
+visual precisa referenciar todas as páginas e usar a menor nota entre elas.
+Não há chamadas ao Groq para o PDF, nem amostragem ou redução de páginas.
+Uma reprovação ainda permite a única geração conservadora prevista, que exige
+nova avaliação completa. Assim, nove páginas usam uma chamada na primeira
+tentativa, no máximo duas se houver regeneração. Falha técnica não dispara retry.
+O Flash-Lite dispõe de modalidade gratuita, mas a cota efetiva é definida pelo
+projeto no AI Studio; a troca não promete uma quantidade diária específica nem
+ativa cobrança. Clientes separados e cacheados, timeout de 30 segundos e zero
+retries automáticos. O Groq usa temperatura zero; o Flash-Lite 3.5 aplica seus
+parâmetros de amostragem fixos, conforme informado pelo provedor.
 Não há fallback para outro modelo. Saída JSON nativa, sem function calling.
 No Groq, usar `strict=True` para restringir a geração ao schema; os critérios e
 IDs das referências continuam conferidos no backend. Logs de falha distinguem
@@ -19,6 +43,13 @@ O juiz usa diretamente `GROQ_API_KEY` e `GEMINI_API_KEY`, já configuradas na AP
 Não exige variáveis adicionais de confirmação. A gratuidade depende do plano
 das contas nos provedores; o código não consulta nem altera esses planos.
 Cota excedida ou serviço indisponível nunca implica aprovação automática.
+A chamada textual respeita o prazo de reposição informado pelo Groq em
+`x-ratelimit-reset-tokens`, compartilhado entre os julgamentos do mesmo processo.
+Há espera antes da próxima chamada, limitada a 30 segundos; não há repetição
+automática de chamadas rejeitadas. O tempo total de um PDF pode ultrapassar esse
+limite porque inclui consultas, renderização e, se reprovado, uma segunda geração.
+Esse controle não conhece o consumo feito por outros processos ou aplicações da
+mesma conta; uma nova restrição do provedor ainda resulta em indisponibilidade.
 A implementação inicial foi validada com mocks. Avaliações reais controladas
 são registradas na seção de correções abaixo.
 
@@ -32,6 +63,9 @@ dependências adicionais em diretório temporário, sem alterar o ambiente Asses
 relevância da resposta, relevância do contexto, segurança, estilo e visual.
 Cada avaliação exige justificativa curta e IDs de fontes existentes, sem cadeia
 de pensamento. Nota inteira estrita de 1 a 5; inaplicável exige nota nula.
+O schema restringe os critérios à modalidade executada e exige referências não
+vazias. No PDF, o prompt identifica o texto da página como candidata, em vez de
+exigir uma resposta conversacional ao pedido de conferência.
 Critérios críticos nunca podem ser inaplicáveis. Critérios ausentes, duplicados,
 extras ou referências desconhecidas invalidam o julgamento.
 
@@ -42,7 +76,8 @@ correta: a qualidade semântica precisa de avaliação real separada.
 
 O juiz recebe fontes do turno: consultas e filtros do monitoramento; dados,
 relatos e regras consultadas do diagnóstico; base aprovada e seleção da FAQ;
-histórico e memória explicitamente não verificados. A candidata não é evidência
+memória efetivamente recuperada e referências conversacionais identificadas
+como históricas. O histórico inteiro não é enviado. A candidata não é evidência
 de si mesma. Mascaramento de padrões reconhecidos precede a avaliação textual.
 PDFs e suas imagens contêm os dados autorizados do relatório; não são anônimos.
 
@@ -59,10 +94,14 @@ de sessão não passa pelo juiz nesta entrega.
 ## PDF
 
 Extração por pypdf; renderização local com PDFium e Pillow. O texto de todas as
-páginas e o snapshot completo são avaliados pelo GPT-OSS. Cada página renderizada
-é avaliada pelo Gemini com sua identificação e `design.md`. Não há amostragem
-ou truncamento silencioso. São uma chamada textual e N chamadas visuais por PDF;
-relatórios extensos podem esgotar cotas e aumentar a latência.
+páginas é avaliado junto às imagens em uma única chamada com os indicadores do
+snapshot e todos os alertas. Séries brutas não são duplicadas no prompt. Ausência de
+horário de um alerta no documento provoca reprovação antes do LLM. Essa checagem
+não comprova sozinha que cada campo ou gráfico está correto.
+Todas as imagens são enviadas ao Flash-Lite com `design.md`. Não há amostragem.
+O backend rejeita vereditos visuais que não referenciem todas as páginas.
+Relatórios extensos ainda podem atingir limites de entrada e aumentar a latência;
+falha ou tamanho não suportado nunca permite entrega sem validação.
 
 Uma reprovação válida permite uma segunda renderização do mesmo snapshot, com
 paginação conservadora: quebra condicional antes do gráfico, maior largura para
@@ -72,12 +111,12 @@ inteiro é avaliado de novo. A recuperação não promete corrigir qualquer defe
 
 Reprovação persistente ou veredito inválido retorna JSON 502. Indisponibilidade
 retorna JSON 503. Não gerar nova versão para contornar falha do provedor. Não
-registrar `GERADO`/`BAIXOU` nem entregar arquivo sem aprovação integral. O PDF
+registrar `gerado`/`baixou` nem entregar arquivo sem aprovação integral. O PDF
 aprovado é o mesmo usado no SHA-256 e na auditoria atômica existente.
 
 ## Testes e avaliação
 
-Testes básicos em `tests/test_juiz.py` e `tests/test_juiz_pdf.py`: rubricas, limites,
+Testes básicos em `tests/test_juiz.py` e `tests/test_relatorios.py`: rubricas, limites,
 referências, máscaras, persistência, recuperação e avaliação de todas as páginas.
 Regressões existentes mantêm isolamento por mocks. Renderização/extração usa PDFs
 locais; isso não comprova que um LLM identifica alucinações ou defeitos visuais.

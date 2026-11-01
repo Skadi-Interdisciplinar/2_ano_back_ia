@@ -1,87 +1,85 @@
-# Revisão do planejamento de diagnóstico da Trimmy
-
-Data: 2026-10-11. Método: security-best-practices e comparação do código da Trimmy com o Assessor. Revisão estática; nenhuma conexão real ou pergunta ao LLM foi executada.
+# Revisão de segurança da Trimmy
 
 ## Resumo executivo
 
-O plano é adequado como evolução do domínio de diagnóstico, com duas tools e reutilização da infraestrutura existente. A implementação ainda não existe. A segurança dependerá de controles executáveis de autorização, referência às evidências e aprovação das regras, não apenas de prompts. A API está somente local, conforme confirmado pelo usuário; a autenticação simulada permanece uma limitação explícita e impede considerar a solução pronta para produção.
+Revisão do código atual, comparado à estrutura do Assessor. Contexto confirmado
+pelo usuário: API somente local e bancos de teste. Foram preservados mock de
+autenticação, contratos e regras aprovadas. Não foi encontrada escrita operacional
+pelas tools. A revisão e os testes não certificam produção nem eliminam falhas
+semânticas dos modelos. A avaliação real revelou também limites dos provedores.
 
-## Achados prioritários
+## Alta se publicada: BP-01 — Identidade mockada
 
-### BP-01 — Autenticação simulada: impedimento para publicação
+- Referência: FASTAPI-AUTH-001 e FASTAPI-AUTHZ-001.
+- Local: `app/auth.py:15`, `obter_usuario_autenticado`; `app/config.py`,
+  `TRIMMY_USUARIO_TESTE_ID`.
+- Evidência: token descartado, identidade selecionada pelo servidor.
+- Impacto: quem alcançar a API compartilha a identidade e memória do mock.
+- Decisão vigente: manter local; JWT foi retirado a pedido. Integração de
+  autenticação do aplicativo é pendente, sem inventar validador ou permissões.
+- Controle existente: acesso por perfil/CD é conferido nas consultas, e o cliente
+  não escolhe identidade nos argumentos de tools. Isso não autentica o chamador.
 
-- Severidade: alta se exposta a terceiros; no uso local confirmado, limitação conhecida dos testes.
-- Referência: FASTAPI-AUTH-001 / FASTAPI-AUTHZ-001.
-- Evidência: `app/auth.py:13`, `obter_usuario_autenticado`, descarta o token e retorna `AuthenticatedUser(usuario_id=2)`; `app/main.py:14` também injeta usuário 2.
-- Impacto: quem alcançar a API opera como o usuário 2, inclusive sobre conversa e encerramento de sessão. ContextVar preserva identidade interna, mas não autentica sua origem.
-- Recomendação: manter o diagnóstico em testes locais; integrar autenticação real antes de publicação. Não alterar o contrato token/mensagem nesta entrega. A flag de mock em `app/config.py` não é aplicada por essa função atualmente.
-- Nota: não é necessário trocar para JWT ou outro mecanismo sem conhecer a integração do aplicativo. Não foi confirmado acesso externo.
+## Média: BP-02 — Disponibilidade e quotas
 
-### BP-02 — Reutilização incompleta da autorização de alertas
+- Local: `app/llms.py`, `criar_agente`/`obter_modelos`; `app/juiz.py:112`,
+  `avaliar`; `app/main.py`, handlers.
+- Evidência: serviços externos são necessários; testes reais encontraram
+  HTTP 413, HTTP 429 e falha de conexão. Redis local estava desligado.
+- Correções: julgamento de PDF por página, menos dados repetidos, referências
+  restritas no schema, timeout de 30 segundos/chamada, zero retries automáticos,
+  até 25 passos por agente. O Redis existente foi iniciado, sem gerar leituras.
+- Risco residual: quota e disponibilidade externas; relatórios extensos exigem
+  mais chamadas. Não usar fallback de aprovação nem remover o juiz para passar.
+- Antes de publicar: aprovar limites de volume/concor­rência e retenção. Não
+  foram inventadas quotas de usuários nem janelas operacionais.
 
-- Severidade: alta se a implementação copiar somente parte dos filtros; lacuna do plano, não falha de uma tool de diagnóstico existente.
-- Referência: FASTAPI-AUTHZ-001 / FASTAPI-INJECT-001.
-- Evidência: `app/tools/monitoramento.py:161`, `consultar_alertas_atuais`: ativos ou reconhecidos pelo usuário; `:180` aplica CD; `:183` exige também `a.nivel_atual = operador` para OPERADOR.
-- Impacto: uma consulta nova que só filtre câmara, CD e status pode expor alertas e justificativas que o monitoramento não permite.
-- Ajuste do plano: uma consulta interna de alertas permitidos deve fornecer associação por IDs e filtros opcionais de câmara/alerta. A tool pública atual apenas transforma o resultado no formato existente. Justificativas devem ser vinculadas ao alerta autorizado; possuir ID não concede acesso.
-- Testes: operador diante de alerta de outro nível; alerta reconhecido por outro usuário; alerta de outra câmara; tentativa de acessar outro CD.
+## Média: BP-03 — Instruções e interpretações em conteúdo não confiável
 
-### BP-03 — Estrutura válida não garante interpretação correta do relato
+- Local: `app/guardrail.py`, `guardrail_entrada`/`guardrail_saida`;
+  `app/diagnostico.py:132`, `validar_analise`;
+  `app/regras_diagnostico.py:118`, `recuperar_regras`.
+- Controles: consulta por identidade interna, schemas, fonte literal dos relatos,
+  requisitos das regras, tratamento de negação/incerteza e comparação numérica.
+  Recuperação compara conteúdo, versão e assinatura com a base aprovada.
+- Correções: leituras inválidas não são apresentadas como temperaturas válidas;
+  fontes do turno chegam ao juiz; memória é identificada como histórica.
+- Risco residual: regex e julgamento por LLM são parciais. Não permitir que texto
+  de justificativas, memória ou regras recuperadas altere autorização/aprovação.
 
-- Severidade: média no contexto local; pode aumentar com uso operacional.
-- Evidência: `app/graph.py:90` recebe texto do especialista; `app/graph.py:134` envia a saída ao orquestrador LLM. O plano propõe estrutura Pydantic e trechos de origem, ainda não implementados.
-- Impacto: o modelo pode transformar “não há gelo” em presença de gelo, misturar ocorrências ou citar um trecho verdadeiro para sustentar uma hipótese incompatível.
-- Ajuste do plano: um validador do diagnóstico verifica valores finitos, cenário da regra, evidências da execução e referência exata ao relato. As falas anteriores do assistente não são relatos do usuário. Negação, contradição, atualidade ou associação incertas exigem esclarecimento; não basta constatar que o trecho existe.
-- Risco residual: interpretação semântica feita por LLM não é certificada pelo schema. Não prometer que checagem de citação elimina esse risco. Não acrescentar um segundo agente verificador como garantia artificial.
-- Saída: hipóteses, recomendações e fontes vêm das regras aprovadas; apresentação determinística do diagnóstico no orquestrador evita novas conclusões técnicas.
+## Média em uso prolongado: BP-04 — Acúmulo de mensagens
 
-### BP-04 — RAG deve recuperar regras, não conceder aprovação
+- Local: `app/memory.py:65`, `salvar_turno_conversa`.
+- Evidência: `$push/$each` conserva mensagens no documento de sessão. O contexto
+  consulta somente as últimas 20, mas não reduz o documento armazenado.
+- Impacto: sessão longa pode alcançar o limite de documento do MongoDB.
+- Pendente: política de retenção/rotação ou mudança de armazenamento aprovada.
+  Não apagar conversas nem iniciar sessões silenciosamente nesta revisão.
 
-- Severidade: média, condicionada a conteúdo incorreto ou acesso de escrita ao índice.
-- Evidência: `app/vectorstore.py:7` separa a memória em `trimmy_memoria_resumos`; `:12`, `:21` e `:31` já disponibilizam cliente, modelo de embeddings e geração de vetor. A coleção técnica ainda não está implementada.
-- Impacto: misturar memória e regras, confiar no status de um payload sem conferir a fonte aprovada, ou permitir indexação pelo agente pode ativar conteúdo não aprovado.
-- Ajuste do plano: fonte estruturada única no repositório; coleção técnica exclusiva; recuperar apenas IDs/versões cujo conteúdo corresponda à base aprovada. Indexador administrativo sem registro em TOOLS. Não fazer consultas HTTP às URLs das fontes durante o chat.
-- Nota: separação de coleção não substitui controle das credenciais do Qdrant. Não foi auditada a configuração de permissões do cluster.
+## Controles conferidos
 
-### BP-05 — Disponibilidade e exposição de erros
+- SQL parametrizado; trechos dinâmicos são cláusulas fixas, em
+  `app/tools/monitoramento.py:59` e `:186`. A comparação de estado/nível usa
+  maiúsculas sem alterar os valores originais ou o escopo.
+- Justificativas por alerta/câmara autorizados, em `app/tools/diagnostico.py`.
+- Qdrant de memória filtrado por usuário e reconferido no payload, em
+  `app/vectorstore.py`, `buscar_resumos`; índice técnico separado.
+- PDF usa snapshot somente leitura, fecha conexão antes de renderizar, escapa
+  texto, julga antes de registrar, calcula hash e faz auditoria com rollback.
+  Campos físicos `gerado`/`baixou` respeitam as constraints consultadas.
+- Observabilidade exclusiva de SUPER_ADMIN, sem mensagens/credenciais. ContextVar
+  conserva turnos entre threads; falha do juiz não conta como sucesso.
+- `.env` ignorado pelo Git; pacote conferido sem arquivo de ambiente. Design,
+  FAQ e regras incluídos na distribuição.
+- Nenhum endpoint recebe caminho de arquivo, comando de shell ou URL arbitrária
+  para buscar conteúdo. Não há uploads ou desserialização pickle no runtime.
 
-- Severidade: média; sem evidência de exploração local.
-- Evidência: `app/llms.py:9` não configura timeout/retries explícitos; `app/tools/monitoramento.py:95` percorre o stream até concluir a busca; `app/memory.py:78` acumula mensagens na sessão. `app/routes/chat.py:23` atualmente propaga falhas sem os mapeamentos propostos.
-- Impacto: chamadas lentas, leituras extensas e mensagens acumuladas podem atrasar ou interromper o atendimento. Isso não deve parecer ausência de dados nem diagnóstico mecânico.
-- Ajuste do plano: handlers centrais para erros conhecidos, com mensagens públicas genéricas; preservar a diferença entre indisponibilidade e dados ausentes. Não mapear todo RuntimeError para 503: encerramento de sessão também usa esse tipo.
-- Fora desta entrega: valores de timeout, quotas e retenção precisam de decisão própria; não inventar limites operacionais. Não afirmar thread presa indefinidamente, pois defaults das bibliotecas não foram verificados nesta revisão.
+## Validação e pendências
 
-## Estrutura mínima recomendada e ausência de redundâncias
+Os testes unitários usam mocks simples e verificações diretas. Integrações reais
+e perguntas são registradas separadamente em `ACOMPANHAMENTO_IMPLEMENTACAO_SKADI.md`.
+O checklist atual está em `../TRIMMY.md`; os totais históricos de outras entregas
+não representam a suíte atual.
 
-| Responsabilidade | Decisão |
-| --- | --- |
-| Consultar dados operacionais | Uma tool `consultar_evidencias_diagnostico` reúne cadastro, leitura, alertas e justificativas; não criar tools separadas para cada SELECT. |
-| Recuperar conhecimento aprovado | Uma tool `buscar_regras_diagnostico`; não unificar com evidências, pois possuem argumentos, origem e finalidade distintos. |
-| Autorização e consultas compartilhadas | Reutilizar `validar_acesso`, seleção de câmaras, leitura Redis e consulta interna de alertas; não criar outro RBAC ou clonar SQL. |
-| Aprovação e indexação | Um arquivo estruturado das seis regras e um comando administrativo; não criar serviço, endpoint ou agente de aprovação. |
-| Validar análise | Um módulo de domínio com modelos Pydantic e um ponto de validação; não construir motor genérico de regras ou cadeia de wrappers. |
-| Apresentar análise | Um formatador chamado pelo orquestrador para diagnóstico; demais domínios preservados. |
-| Recursos existentes | Reutilizar get_conn, contexto de usuário, clientes, embeddings e persistência de conversas; não adicionar dependência ou banco sem necessidade demonstrada. |
-
-Uma função interna seguida de um wrapper @tool não é redundante quando a função recebe a identidade do backend e o wrapper expõe só os argumentos permitidos ao modelo. Validar acesso no fluxo e em tools diretamente invocáveis também é defesa necessária, não uma razão para retirar a checagem da tool. Já funções que só renomeiam outras, consultas SQL copiadas e validadores idênticos devem ser evitados.
-
-## Compatibilidade com o Assessor
-
-Comparação direta realizada em seu checkout de referência:
-
-- `Assessor/app/graph.py:29`: roteador/especialistas criados com create_agent e listas de tools por domínio; o plano acompanha esse desenho.
-- `Assessor/app/tools/agenda.py:37`: schema Pydantic e @tool; `Assessor/app/tools/db.py:8`: get_conn centralizado.
-- `Assessor/app/tools/memoria.py:10`: identidade passada internamente por RunnableConfig. A Trimmy já usa ContextVar; não adicionar um segundo mecanismo só para copiar o Assessor.
-- `Assessor/app/graph.py:201`: orquestrador chama LLM. A apresentação fixa de diagnóstico da Trimmy é uma diferença intencional aprovada, não equivalência literal.
-
-Não copiar regras financeiras, defaults, permissões ou infraestrutura de guardrails sem necessidade específica da Trimmy.
-
-## Ajustes documentais e critérios de aceite
-
-A base em `docs/base_tecnica_diagnostico_em_revisao.md:7` ainda está marcada EM_REVISAO e `:29` exclui OPERADOR. O usuário aprovou a base e depois autorizou os quatro perfis com acesso igual ao monitoramento. Na implementação, atualizar esses registros sem inventar aprovador no banco. Esta revisão não ativa regras nem altera aquela base.
-
-Antes de concluir a entrega: conferir schema real; testar todos os filtros do monitoramento; avaliar cada regra com e sem evidências; testar negações e mistura de ocorrências; impedir atualização do índice pelo LLM; validar erro de infraestrutura e saída inválida; verificar resposta sem IDs e sem conclusões acrescentadas. Testes unitários simples não substituem avaliação de perguntas com o modelo e integração real separada.
-
-## Conclusão
-
-Plano aprovado tecnicamente com os ajustes BP-02 a BP-04 incorporados à implementação. Adequado ao projeto, com duas tools e sem novas camadas genéricas. Autenticação mock e controles de disponibilidade permanecem limitações conhecidas, não certificação de segurança de produção. Nenhum código de aplicação foi alterado nesta revisão.
+Sem alteração nos repositórios mobile/backend, permissões dos serviços, planos
+pagos, tabelas ou triggers. Nenhum usuário foi promovido a SUPER_ADMIN.

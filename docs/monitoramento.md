@@ -6,7 +6,7 @@ TOOLS, no padrão do Assessor. A memória de conversas é uma tool separada.
 
 ## Temperaturas
 
-consultar_temperaturas recebe camara_id, modelo e/ou localizacao para identificar
+consultar_temperaturas recebe camara_id e/ou localizacao para identificar
 uma câmara. Para todas as câmaras permitidas, exige todas=True sem filtros.
 Filtros vazios, tipos inválidos ou combinação de todas=True com identificação são
 rejeitados. Nenhum erro de identificação amplia o escopo automaticamente.
@@ -37,7 +37,7 @@ reais não foram exercitados por esse teste.
 ## Cadastro e alertas
 
 listar_camaras_responsaveis usa a mesma consulta interna, mas não acessa o Redis.
-Retorna modelo/localização e limites. IDs de câmara/sensor/evento não são entregues
+Retorna localização e limites. IDs de câmara/sensor/evento não são entregues
 ao modelo pelas tools de cadastro ou temperaturas.
 
 Alertas permanecem separados, com os filtros já aprovados para status, CD,
@@ -57,7 +57,8 @@ A autenticação continua mockada com usuário 2; não publicar esse bypass em p
 - Câmara por localização: {"localizacao": "localização cadastrada"}
 - Todas as câmaras: {"todas": true}
 
-O mobile continua enviando apenas token e mensagem para POST /chat.
+O mobile envia somente mensagem no corpo de POST /chat e o JWT no cabeçalho Authorization: Bearer.
+ADMIN consulta os CDs vinculados em tb_admin_cd; GESTOR e OPERADOR usam o próprio CD.
 Não precisa selecionar a tool ou enviar seus argumentos.
 
 As três tools anteriores de leitura foram removidas do registro e do código.

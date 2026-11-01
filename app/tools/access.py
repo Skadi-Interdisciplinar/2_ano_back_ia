@@ -13,6 +13,16 @@ class EscopoAcesso:
     usuario_id: int
     nivel_acesso: str
     cd_id: int | None
+    cds_admin: tuple[int, ...] = ()
+
+    @property
+    def cds_permitidos(self) -> tuple[int, ...]:
+        if self.nivel_acesso == "ADMIN":
+            return self.cds_admin
+        return (self.cd_id,) if self.cd_id is not None else ()
+
+    def permite_cd(self, cd_id: int) -> bool:
+        return self.nivel_acesso == "SUPER_ADMIN" or cd_id in self.cds_permitidos
 
 
 def validar_acesso(usuario_id: int, *, cursor=None) -> EscopoAcesso:
@@ -31,6 +41,8 @@ def validar_acesso(usuario_id: int, *, cursor=None) -> EscopoAcesso:
     nivel_acesso = str(linha[1]).strip().upper()
     if nivel_acesso not in NIVEIS_ACESSO_CONHECIDOS:
         raise PermissionError("Nivel de acesso do usuario nao reconhecido.")
-    return EscopoAcesso(
-        usuario_id=linha[0], nivel_acesso=nivel_acesso, cd_id=linha[2]
-    )
+    cds_admin = ()
+    if nivel_acesso == "ADMIN":
+        cursor.execute("SELECT cod_cd FROM tb_admin_cd WHERE cod_admin = %s ORDER BY cod_cd", (linha[0],))
+        cds_admin = tuple(cd[0] for cd in cursor.fetchall())
+    return EscopoAcesso(usuario_id=linha[0], nivel_acesso=nivel_acesso, cd_id=linha[2], cds_admin=cds_admin)

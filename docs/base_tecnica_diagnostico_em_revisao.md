@@ -1,11 +1,12 @@
 # Base técnica de diagnóstico da Trimmy - versão aprovada
 
-Versão da base: 0.3 (seis regras originais na versão 0.2; duas novas na versão 0.3)
+Versão da base: 0.4 (cinco regras originais na versão 0.2; duas novas de degelo na versão 0.3; porta/vedação atualizada na versão 0.4)
 
 Data da pesquisa: 2026-10-11
 
-Status técnico: seis regras **APROVADAS** em 2026-10-11 e duas regras de degelo
-**APROVADAS** em 2026-10-12, por autorização explícita do usuário nesta conversa.
+Status técnico: seis regras **APROVADAS** em 2026-10-11, duas regras de degelo
+**APROVADAS** em 2026-10-12 e a atualização de porta/vedação **APROVADA** em
+2026-10-28, por autorização explícita do usuário nesta conversa.
 
 Fonte executável: `app/base_regras_diagnostico.json`. A aprovação não atribui uma identidade fictícia no banco. A indexação é administrativa.
 
@@ -103,8 +104,8 @@ concede acesso adicional: os quatro perfis seguem o escopo operacional autorizad
 
 ## 4. Regras candidatas
 
-As seis regras originais têm versão 0.2 e status APROVADA; as duas regras de
-degelo têm versão 0.3 e status APROVADA. Todas dependem das condições
+Cinco regras originais têm versão 0.2 e status APROVADA; a regra de porta/vedação
+tem versão 0.4; as duas regras de degelo têm versão 0.3 e status APROVADA. Todas dependem das condições
 comuns acima. Os identificadores abaixo são propostos para esta base; antes da
 indexação, verificar unicidade no índice técnico existente.
 
@@ -112,15 +113,16 @@ indexação, verificar unicidade no índice técnico existente.
 
 - **Cenário:** leitura acima do máximo cadastrado e relato sobre porta da mesma câmara.
 - **Evidências obrigatórias:** leitura/limite consultados; usuário relata porta que
-  não fecha ou vedação aparentemente danificada. Só mencionar abertura se relatada.
-- **Hipótese permitida:** entrada de ar pela porta pode contribuir para o desvio.
+  ficou aberta, não fecha ou vedação aparentemente danificada. Só mencionar abertura se relatada.
+- **Hipótese permitida:** uma porta mantida aberta pode permitir a entrada de ar do
+  ambiente, aumentar a carga térmica e contribuir para o desvio.
 - **Recomendação permitida:** verificar fechamento e condição visível da vedação;
   encaminhar indícios de dano ao responsável técnico, sem instrução de reparo.
-- **Pergunta se faltar relato:** "A porta fecha completamente? Há dano visível na vedação?"
+- **Pergunta se faltar relato:** "A porta ficou aberta ou demora a fechar? Há dano visível na vedação?"
 - **Limitações:** não inferir porta aberta apenas pela temperatura; não confirmar
   defeito, tempo de abertura ou relação causal.
 - **Fonte:** [S1], seção Air infiltration; [S2], seção How can I ensure the efficiency of my cold room?
-- **Aprovação:** autorizada pelo usuário nesta conversa em 2026-10-11; sem cadastro fictício de aprovador.
+- **Aprovação:** atualizada por autorização do usuário nesta conversa em 2026-10-28; sem cadastro fictício de aprovador.
 
 ### DIAG-TEC-002 - Entrada de produtos com carga térmica
 

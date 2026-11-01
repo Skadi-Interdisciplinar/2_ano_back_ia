@@ -1,25 +1,18 @@
-"""Painel agregado de observabilidade, restrito ao SUPER_ADMIN."""
+"""Painel agregado de observabilidade para usuários autenticados."""
 
 from typing import Annotated
 
-from app.auth import obter_usuario_autenticado
+from app.auth import AuthenticatedUser, usuario_bearer
 from app.observabilidade import painel_mobile
+from app.schemas import ObservabilidadeResponse
 from app.tools.access import validar_acesso
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Depends
 
 router = APIRouter(tags=["observabilidade"])
 
 
-def _token_bearer(authorization: Annotated[str | None, Header()] = None) -> str:
-    """Extrai somente o token Bearer; evita token em URL ou corpo de GET."""
-    esquema, separador, token = (authorization or "").partition(" ")
-    if esquema.lower() != "bearer" or not separador or not token.strip():
-        raise HTTPException(status_code=401, detail="Autenticação necessária.")
-    return token.strip()
-
-
 @router.get(
-    "/observabilidade",
+    "/observabilidade", response_model=ObservabilidadeResponse,
     responses={
         401: {"description": "Token Bearer ausente ou inválido."},
         403: {"description": "Acesso não permitido."},
@@ -27,11 +20,8 @@ def _token_bearer(authorization: Annotated[str | None, Header()] = None) -> str:
     },
 )
 def consultar_observabilidade(
-    authorization: Annotated[str | None, Header()] = None,
+    usuario: Annotated[AuthenticatedUser, Depends(usuario_bearer)],
 ) -> dict:
-    """Entrega métricas agregadas do processo atual apenas ao SUPER_ADMIN."""
-    usuario = obter_usuario_autenticado(_token_bearer(authorization))
-    escopo = validar_acesso(usuario.usuario_id)
-    if escopo.nivel_acesso != "SUPER_ADMIN":
-        raise PermissionError("Observabilidade restrita ao SUPER_ADMIN.")
+    """Entrega métricas agregadas após conferir a identidade do usuário."""
+    validar_acesso(usuario.usuario_id)
     return painel_mobile()

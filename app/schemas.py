@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -16,7 +16,6 @@ class DecisaoRota(BaseModel):
 
 class RelatorioRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-    token: str = Field(min_length=1, max_length=10_000, repr=False)
     cd_id: int | None = Field(default=None, gt=0, strict=True)
     camara_id: int | None = Field(default=None, gt=0, strict=True)
     data_inicial: date
@@ -39,15 +38,13 @@ class RelatorioRequest(BaseModel):
 class ChatRequest(BaseModel):
     """Mensagem recebida pelo endpoint de chat.
 
-    O token sera validado pela autenticacao do aplicativo quando ela estiver
-    integrada. Durante o bypass temporario, ele e recebido e nao interpretado.
+    A identidade vem do JWT no cabeçalho Authorization, antes do fluxo.
     """
 
-    token: str = Field(min_length=1, max_length=10_000)
     mensagem: str = Field(min_length=1, max_length=10_000)
     model_config = ConfigDict(extra="forbid")
 
-    @field_validator("token", "mensagem")
+    @field_validator("mensagem")
     @classmethod
     def texto_obrigatorio(cls, valor: str) -> str:
         valor = valor.strip()
@@ -70,10 +67,71 @@ class ChatResponse(BaseModel):
         return " ".join(valor.split())
 
 
-class EncerrarChatRequest(BaseModel):
-    token: str = Field(min_length=1, max_length=10_000)
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-
-
 class EncerrarChatResponse(BaseModel):
     resumo: str | None = None
+
+
+class ResumoObservabilidade(BaseModel):
+    turnos: int
+    erros: int
+    resolucoes_tecnicas: int = 0
+    indice_erros: float | None
+    latencia_media_ms: float | None
+    latencia_p95_ms: int | None
+    tokens_entrada: int
+    tokens_saida: int
+    custo_estimado_usd: float | None
+    custo_parcial_conhecido_usd: float = 0
+    estimativa_custo_completa: bool = True
+    modelos_sem_preco: list[str] = Field(default_factory=list)
+    custo_medio_por_turno_usd: float | None
+
+
+class LatenciaInteragente(BaseModel):
+    agente: str
+    latencia_media_ms: float | None
+    chamadas: int
+
+
+class ProjecaoSemanal(BaseModel):
+    usuarios_semanais: int
+    interacoes_por_usuario: int
+    premissa: str
+    custo_estimado_usd: float | None
+    motivo: str = ""
+
+
+class MetricaFinanceira(BaseModel):
+    valor_usd: float | None = None
+    valor_percentual: float | None = None
+    motivo: str
+    beneficio_estimado_usd: float | None = None
+
+
+class PremissasObservabilidade(BaseModel):
+    tipo: str
+    tempo_manual_evitado_minutos: float | None
+    custo_hora_usd: float | None
+    interacoes_por_usuario_semana: int = 1
+    turnos_na_amostra: int
+
+
+class TurnoRecente(BaseModel):
+    data_hora: datetime
+    rota: str
+    status: str
+    latencia_total_ms: int
+    tokens_entrada: int
+    tokens_saida: int
+    custo_usd: float | None
+
+
+class ObservabilidadeResponse(BaseModel):
+    escopo: str
+    resumo: ResumoObservabilidade
+    latencia_interagentes: list[LatenciaInteragente]
+    projecoes_semanais: list[ProjecaoSemanal]
+    custo_por_resolucao: MetricaFinanceira
+    roi: MetricaFinanceira
+    premissas: PremissasObservabilidade | None = None
+    turnos_recentes: list[TurnoRecente]

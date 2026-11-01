@@ -16,6 +16,7 @@ COLLECTION_DIAGNOSTICO = "trimmy_regras_diagnostico"
 BASE_REGRAS = Path(__file__).with_name("base_regras_diagnostico.json")
 Requisito = Literal[
     "porta_nao_fecha", "vedacao_danificada", "produtos_mais_quentes",
+    "porta_aberta",
     "produtos_obstruem_ar", "gelo_evaporador", "gelo_obstrui_ar",
     "condensador_obstruido_observacao_segura", "sensor_posicao_exposta",
     "degelo_em_andamento", "degelo_encerrado", "gelo_permaneceu_apos_degelo",

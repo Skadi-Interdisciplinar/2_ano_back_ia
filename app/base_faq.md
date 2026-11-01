@@ -36,7 +36,7 @@ consumo ou descarte.
 
 ### FAQ-006 - Como identifico uma câmara na conversa?
 
-Informe a localização ou o modelo cadastrado. Você também pode informar o
+Informe a localização cadastrada. Você também pode informar o
 identificador da câmara, se já o conhecer. Se houver mais de uma correspondência,
 a Trimmy pedirá uma informação adicional para identificar a câmara certa.
 
@@ -88,9 +88,8 @@ feita pelo chat e depende da integração desse botão com o serviço de relató
 
 ### FAQ-019 - Quem pode gerar relatórios?
 
-Na implementação atual, GESTOR pode gerar relatórios do próprio centro de
-distribuição, e SUPER_ADMIN pode selecionar um centro de distribuição. ADMIN e
-OPERADOR não têm acesso à geração de relatórios.
+ADMIN pode gerar relatórios dos CDs vinculados a ele, escolhendo um CD por relatório.
+GESTOR e OPERADOR ficam no próprio CD. SUPER_ADMIN pode selecionar qualquer CD.
 
 ### FAQ-020 - O que aparece no relatório?
 
@@ -189,6 +188,31 @@ A Trimmy não altera o nível nem define um prazo por conta própria.
 O canal definido para as notificações é push no aplicativo. Elas são destinadas
 aos funcionários do centro de distribuição que estão no nível de acesso
 responsável pelo alerta naquele momento, conforme o escalonamento.
+
+### FAQ-041 - Onde encontro os alertas no aplicativo?
+
+Na barra de navegação inferior do aplicativo, toque em Alertas para abrir a
+tela de alertas.
+
+### FAQ-042 - Onde encontro as câmaras no aplicativo?
+
+Na barra de navegação inferior do aplicativo, toque em Câmaras para abrir a
+tela de câmaras.
+
+### FAQ-043 - Onde fica a tela inicial?
+
+Na barra de navegação inferior do aplicativo, toque em Início para voltar à
+tela inicial.
+
+### FAQ-044 - Onde encontro a Trimmy no aplicativo?
+
+Na barra de navegação inferior do aplicativo, toque em Trimmy para abrir a
+conversa com a assistente.
+
+### FAQ-045 - Onde encontro os relatórios no aplicativo?
+
+Na barra de navegação inferior do aplicativo, toque em Relatórios para abrir a
+tela de relatórios.
 
 ## Gravidade
 
