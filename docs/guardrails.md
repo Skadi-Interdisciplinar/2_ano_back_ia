@@ -64,7 +64,7 @@ exigir outra identificação; ele não autoriza ampliar a busca para contornar i
 ## O que não muda e limites da proteção
 
 - Nenhuma chamada adicional ao LLM, dependência paga, agente ou tool nova.
-- `POST /chat` continua recebendo somente token e mensagem. Permissões, filtros de
+- `POST /chat` recebe somente mensagem no corpo, com JWT no cabeçalho Bearer. Permissões, filtros de
   alertas, regras aprovadas e consultas SQL não foram ampliados.
 - O PDF não passa pelo grafo conversacional e não foi alterado nesta etapa.
 - A autenticação continua mockada para testes locais; guardrail não autentica.

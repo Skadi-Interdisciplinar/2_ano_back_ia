@@ -10,7 +10,6 @@ A antiga rota conversacional
 
 ```json
 {
-  "token": "token-do-aplicativo",
   "cd_id": 1,
   "camara_id": null,
   "data_inicial": "2026-10-01",
@@ -18,8 +17,10 @@ A antiga rota conversacional
 }
 ```
 
-ADMIN, GESTOR e OPERADOR podem omitir `cd_id`: o cadastro determina seu CD. Se enviado,
-precisa ser o mesmo. SUPER_ADMIN precisa escolher um CD. Não há bloqueio por cargo
+JWT obrigatório em `Authorization: Bearer <JWT>`, fora do corpo.
+GESTOR e OPERADOR podem omitir `cd_id`: o cadastro determina seu CD. Se enviado,
+precisa ser o mesmo. ADMIN e SUPER_ADMIN precisam escolher um CD; ADMIN somente
+entre seus vínculos em `tb_admin_cd`. Não há bloqueio por cargo
 na geração; o acesso permanece limitado às câmaras do escopo autorizado.
 `camara_id: null` seleciona todas as câmaras desse CD. Uma identificação inválida
 não amplia o filtro. O corpo não aceita usuário, permissões ou dados calculados.
@@ -89,7 +90,7 @@ Sucesso: `application/pdf`, `Content-Disposition: attachment` e
 `Cache-Control: no-store`. Nome gerado pelo servidor a partir das datas.
 Erros: 403 acesso; 404 seleção; 409 dados inconsistentes; 422 filtros;
 502 reprovação/veredito inválido; 503 banco/provedor indisponível; 500 falha inesperada. Erros de validação desse endpoint não repetem
-o corpo recebido (que contém token). Logs não incluem tokens, SQL ou mensagens
+o corpo recebido. Logs não incluem tokens, SQL ou mensagens
 brutas de SDKs. A rota de chat mantém seu contrato anterior.
 
 ## Uso e testes
@@ -99,10 +100,10 @@ produção, além de pypdf, PDFium e Pillow usados pelo juiz. Inicie `uvicorn ap
 No aplicativo, leia a resposta como bytes/blob para o download, não como JSON.
 
 A autenticação valida o JWT emitido pelo login do backend principal, usando a
-mesma `SECURITY_KEY`. Envie somente o JWT no campo `token`, sem prefixo Bearer.
+mesma `SECURITY_KEY`. Envie o JWT em `Authorization: Bearer <JWT>`, nunca no corpo.
 O username do token é resolvido no PostgreSQL; ID, perfil e CD não são aceitos
 do cliente como identidade. Token inválido ou expirado retorna 401 antes de
-consultar ou gerar o relatório. O CD vem do cadastro; SUPER_ADMIN deve escolher
+consultar ou gerar o relatório. GESTOR/OPERADOR usam o CD do cadastro; ADMIN/SUPER_ADMIN devem escolher
 um CD explicitamente. Não existe usuário de teste fixo nem fallback de autenticação.
 
 Os testes usam mocks e PDFs em memória, sem chamadas a bancos/provedores.

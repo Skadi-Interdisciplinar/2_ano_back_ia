@@ -1,7 +1,6 @@
 # Diagnóstico assistido da Trimmy
 
-O diagnóstico usa RAG, não treinamento. Mantém `POST /chat` com `token` e
-`mensagem`. Não altera alertas, equipamentos ou decisões sobre produtos.
+O diagnóstico usa RAG, não treinamento. Mantém `POST /chat` com `mensagem` no corpo e JWT no cabeçalho Bearer. Não altera alertas, equipamentos ou decisões sobre produtos.
 
 ## Fluxo e arquivos
 
@@ -29,11 +28,11 @@ consulta pública de alertas mantém seu formato anterior, sem IDs internos.
 
 ## Acesso e evidências
 
-SUPER_ADMIN tem acesso global. ADMIN, GESTOR e OPERADOR ficam restritos ao próprio
-CD, conforme o monitoramento. Alertas são ativos ou reconhecidos pelo próprio
+SUPER_ADMIN tem acesso global. ADMIN usa os CDs vinculados em tb_admin_cd;
+GESTOR e OPERADOR ficam restritos ao próprio CD, conforme o monitoramento. Alertas são ativos ou reconhecidos pelo próprio
 usuário. O filtro adicional de nível atual `operador` permanece para OPERADOR.
 
-Identificação pode usar ID explicitamente informado, modelo ou localização.
+Identificação pode usar ID explicitamente informado ou localização.
 Ausência, ambiguidade ou identificação inexistente não amplia a busca. Vários
 alertas exigem escolha por tipo/horário. Quando o usuário pedir explicitamente o
 último alerta, `ultimo_alerta=true` seleciona a data mais recente da consulta já
@@ -173,10 +172,9 @@ Após ativar o índice, exemplos para avaliação manual:
 - “Faça o diagnóstico dessa câmara”, com OPERADOR no escopo autorizado.
 - “Consulte”, após uma pergunta de esclarecimento.
 
-Use uma câmara existente no escopo do usuário de teste. A API continua local com
-autenticação temporária: usuário 2, sem validação real do token. Não expor essa
-configuração em produção. Não houve criação de tabelas, alteração de dados
-operacionais, commit ou push nesta entrega.
+Use uma câmara existente no escopo do usuário autenticado. A API valida o JWT
+emitido pelo backend, recebido em Authorization: Bearer; não há usuário fixo.
+Não foram criadas tabelas nem alteradas regras operacionais para esta adequação.
 
 ## Inclusão aprovada em 2026-10-12: degelo
 

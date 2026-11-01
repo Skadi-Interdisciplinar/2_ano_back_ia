@@ -30,7 +30,7 @@ autenticação JWT compatível com o backend principal. Commits locais; sem push
 | Integração mobile/backend | Pendente | Consumir contratos abaixo e encerrar sessão no aplicativo. Repositórios externos não alterados. |
 | Autenticação real | Implementada; validação com login real pendente | JWT assinado pelo backend, assinatura/expiração verificadas e username resolvido no banco. Requer a mesma SECURITY_KEY. |
 | Observabilidade sem restrição de cargo | Implementada | Todos os perfis cadastrados podem consultar, com cabeçalho Bearer. |
-| MCP/A2A | Pendente de nova definição | Servidor MCP de consultas removido por solicitação do usuário. Nenhum servidor MCP ou A2A está implementado atualmente. |
+| MCP/A2A | Fora do escopo | Não serão implementados, conforme decisão de 01/11/2026. |
 | Retenção/tamanho de sessões | Pendente de política | Mensagens preservadas; definir retenção/rotação antes de uso prolongado. Não apagar histórico silenciosamente. |
 | Predição, reparos e ações automáticas | Fora do escopo | Predição removida. Não recriar treinamento ou tools de escrita operacional. |
 
@@ -39,12 +39,15 @@ autenticação JWT compatível com o backend principal. Commits locais; sem push
 São preservados `main.py`, `routes/`, `schemas.py`, `graph.py`, `prompts.py`,
 `llms.py`, `memory.py`, `vectorstore.py` e `tools/`. Tools usam `@tool`, Pydantic,
 lista `TOOLS` e PostgreSQL por `get_conn()`. Não são reutilizadas regras financeiras.
-Identidade e acesso vêm do backend. Apresentação determinística evita uma geração
+O JWT vem do backend; o acesso é consultado no PostgreSQL pelas mesmas associações de CD. Apresentação determinística evita uma geração
 extra para reescrever temperaturas, status e hipóteses já validados.
 
 ```mermaid
 flowchart TD
-  Cliente["Mobile ou Swagger"] --> API["FastAPI e identidade interna"]
+  Cliente["Mobile ou Swagger"] --> JWT["JWT Bearer: assinatura, expiração e username"]
+  Java["Backend Java: auth/login"] --> Cliente
+  JWT --> API["FastAPI: identidade e escopo compartilhado"]
+  API --> Acesso["PostgreSQL: usuário e vínculos tb_admin_cd"]
   API --> Entrada["Guardrail de entrada"]
   Entrada --> Roteador["Roteador"]
   Roteador --> Monitoramento["Monitoramento"]
@@ -64,18 +67,22 @@ flowchart TD
   API --> PDF["Snapshot e PDF"]
   PDF --> JuizPDF["Juiz textual e visual"]
   JuizPDF --> Auditoria["Hash e auditoria PostgreSQL"]
-  API --> Metricas["Metricas usuario cadastrado"]
+  API --> Metricas["Métricas: latência, erros, tokens e custos"]
+  Metricas --> MongoMetricas["MongoDB: observabilidade_trimmy"]
 ```
 
 ## Contratos e permissões
 
-- `POST /chat`: `{"token":"JWT_DO_LOGIN","mensagem":"Qual a temperatura da câmara 3?"}`.
-- `POST /chat/encerrar`: `{"token":"JWT_DO_LOGIN"}`; resume e indexa a sessão.
-- `POST /relatorios/pdf`: token, datas e seleção de CD/câmara. ADMIN, GESTOR e
-  OPERADOR no próprio CD; SUPER_ADMIN com CD informado.
+- `POST /chat`: `{"mensagem":"Qual a temperatura da câmara 3?"}`.
+- `POST /chat/encerrar`: sem corpo obrigatório; resume e indexa a sessão.
+- `POST /relatorios/pdf`: datas e seleção de CD/câmara. ADMIN e SUPER_ADMIN
+  informam CD; GESTOR e OPERADOR usam o próprio CD.
 - `GET /observabilidade`: `Authorization: Bearer JWT_DO_LOGIN`; usuário cadastrado de qualquer perfil.
 
-SUPER_ADMIN consulta câmaras globalmente; os demais perfis ficam no próprio CD.
+Os quatro endpoints exigem `Authorization: Bearer <JWT>`; os corpos não recebem token.
+SUPER_ADMIN consulta globalmente; ADMIN consulta os CDs de `tb_admin_cd`;
+GESTOR e OPERADOR ficam no próprio CD. Câmara é identificada por ID informado
+ou localização, sem campo modelo no cadastro de câmaras.
 Alertas do chat são ativos permitidos ou reconhecidos pelo próprio usuário;
 OPERADOR mantém o filtro de nível OPERADOR. Relatório inclui todos os status
 do CD/período autorizado. Justificativas pertencem ao alerta autorizado.
@@ -93,11 +100,11 @@ O aplicativo deve chamar explicitamente `/chat/encerrar` para gerar o resumo.
 Contrato conferido em `main` dos repositórios do grupo:
 `2_ano_backend/TokenProvider.java`, `UserDetailsServiceImpl.java` e `UserController.java`.
 O login é `POST /auth/login` com `username` e `senha`; a resposta contém `token`,
-`expirationTime` e `validUntil`. O mobile em `main` ainda possui TODO de chamada
-ao login em `LoginActivity.java` e resposta simulada em `TrimmyActivity.java`.
+`expirationTime` e `validUntil`. O mobile em `main` já chama o login e salva
+o token na SessionManager; a TrimmyActivity ainda apresenta resposta simulada.
 Esses repositórios não foram modificados. Para testar no Swagger da Trimmy,
-copie o campo `token` da resposta real do login, sem o prefixo Bearer nos corpos
-JSON; em `Authorize`, informe apenas o JWT. `teste` deixou de ser um token válido.
+copie o campo `token` da resposta real do login e envie no cabeçalho Bearer;
+em `Authorize`, informe apenas o JWT. `teste` deixou de ser um token válido.
 
 ## Verificação e limites
 
@@ -107,7 +114,7 @@ ruff check .
 ```
 
 Integrações reais são opt-in por `SKADI_RUN_INTEGRATION_TESTS=true`.
-ROI usa `ROI_TEMPO_MANUAL_MINUTOS` e `ROI_CUSTO_HORA_USD`, sem valores padrão.
+ROI usa `ROI_TEMPO_MANUAL_MINUTOS` e `ROI_CUSTO_HORA_USD`, com padrão acadêmico explícito de 5 minutos e US$ 5/hora.
 As projeções consideram uma interação semanal por usuário e preços estimados
 de referência; não afirmam cobrança efetiva ou economia comprovada.
 
@@ -307,7 +314,7 @@ O exemplo “câmara 3” só pode ser usado se essa câmara estiver no escopo d
 | Longo prazo | Conversar, encerrar em `/chat/encerrar`, iniciar outra conversa e perguntar por informação do assunto anterior. | Resumo no MongoDB/Qdrant e recuperação filtrada pelo usuário, sem usar memória como dado operacional. |
 | Relatório | Gerar PDF pelo endpoint com período e seleção autorizados. | Indicadores contra o snapshot, páginas completas, aprovação, hash e auditoria dos bytes finais. |
 | Observabilidade | Consultar `/observabilidade` depois das interações. | Latências, erros, tokens, custos, cenários e ROI com premissas visíveis. |
-| MCP/A2A | Implementação anterior removida; nova proposta ainda não implementada. | O requisito volta a ficar pendente; chamadas HTTP do mobile não demonstram MCP/A2A. |
+| MCP/A2A | Fora do escopo por decisão do projeto. | A integração mobile usa HTTP e não implementa esses protocolos. |
 
 Os testes unitários seguem preparação, execução e verificação com Mock/MagicMock
 e asserts diretos, incluindo exceções esperadas. Cobrem contratos, escopo,
@@ -332,49 +339,100 @@ equipamentos e não decide segurança dos produtos. Predição foi removida e n�
 deve ser apresentada como funcionalidade. Não há promessa de erro zero,
 disponibilidade ilimitada ou economia comprovada.
 
-Para fechar a demanda integralmente, ainda são necessários: definir e implementar
-o novo MCP; alinhar a autorização de ADMIN e o schema ao backend Java; integrar o
-mobile, incluindo login, consumo dos endpoints
-e encerramento da sessão; homologar o JWT emitido pelo login real; e executar
-o roteiro integrado com evidências da versão entregue. O desenho de arquitetura
-e esta justificativa documentam a complexidade já implementada, mas não
-transformam essas pendências em requisitos concluídos.
+Para concluir a integração, faltam a homologação do JWT emitido pelo login Java
+e conectar a tela mobile aos endpoints reais, incluindo encerramento de sessão.
+A tela atual da Trimmy ainda é simulada. MCP e A2A não fazem parte da entrega.
+O desenho e os testes comprovam as partes verificadas, sem declarar homologação
+do aplicativo nem disponibilidade ilimitada dos provedores.
 
-## Validação de autenticação e autorização — 30/10/2026
+## Validação de compatibilidade — 01/11/2026
 
-A revisão distingue identidade (JWT) de autorização (quais dados podem ser lidos).
-A assinatura HMAC, o subject com username e as datas seguem o TokenProvider do
-backend principal. Há testes de assinatura, expiração, claims e usuário inexistente;
-ainda não foi homologado um token obtido pelo login real do backend.
+Conferidos `TokenProvider.java` e `DistributionCenterAccessService.java` na main
+do backend, e AuthInterceptor, RetrofitClient, SessionManager e TrimmyActivity
+na main do mobile. JWT usa a chave HMAC UTF-8 do backend, subject=username,
+iat e exp. O mobile já envia Bearer; a IA agora utiliza esse cabeçalho em todas
+as rotas. A chave permanece no servidor, nunca no aplicativo ou na documentação.
 
-Foi confirmada uma divergência na autorização de ADMIN:
+O schema implantado foi consultado somente para leitura: `tb_admin_cd` existe;
+`tb_camara_frigorifica` não tem modelo. ADMIN usa exclusivamente o relacionamento;
+GESTOR/OPERADOR usam cod_cd; SUPER_ADMIN mantém consulta global. Foram executadas
+consultas de câmaras, alertas e snapshots de relatório para os quatro perfis,
+sem migrations ou escrita de auditoria. O ADMIN consultado tinha cinco CDs
+vinculados. Essa verificação substitui a divergência documentada em 30/10.
 
-| Perfil | Backend Java em main | Trimmy atual |
-| --- | --- | --- |
-| SUPER_ADMIN, leitura | Acesso global. | Acesso global. |
-| ADMIN, leitura | CDs vinculados por `tb_admin_cd.cod_admin` e `tb_admin_cd.cod_cd`. | Filtro por `tb_usuario.cod_cd`, sem consultar o relacionamento. |
-| GESTOR/OPERADOR, leitura de câmaras | CD do usuário. | CD do usuário. |
+A integração Android ainda depende de conectar a tela Trimmy, hoje simulada,
+e configurar uma URL própria para a IA. O interceptor existente é reutilizável.
+Seu timeout de leitura atual é 15 segundos e precisa ser revisto com as medidas
+reais da IA. Nada foi alterado nos repositórios Java ou Android.
 
-Fontes conferidas no repositório `Skadi-Interdisciplinar/2_ano_backend`:
-`DistributionCenterAccessService.java`, `AdminDistributionCenter.java` e
-`AdminDistributionCenterRepository.java`. A comparação desta tabela trata do
-escopo por CD; não comprova equivalência de todos os filtros de alerta, políticas
-de escrita ou comportamentos dos endpoints.
+A homologação com um token emitido pelo login Java é uma verificação separada;
+tokens assinados localmente nos testes não a comprovam. MCP e A2A estão fora
+do escopo, não são pendências desta entrega.
 
-O banco `skadi` configurado foi consultado: `public.tb_admin_cd` não existe.
-O usuário de teste 12 tem perfil ADMIN e `cod_cd=5`. Não é possível verificar
-quais seriam seus CDs autorizados pelo Java sem a tabela e os vínculos oficiais.
-A Trimmy pode restringir indevidamente CDs associados ou permitir um CD que o
-Java não permitiria. Não considerar autorização equivalente ou homologada.
+## Contrato para integração Android
 
-A divergência alcança cadastro/temperaturas e alertas em
-`app/tools/monitoramento.py`, evidências de diagnóstico que reutilizam essas
-consultas e seleção/revalidação de relatórios em `app/relatorios.py`.
-O JWT identifica corretamente o usuário, mas não corrige esses filtros.
+A API Java continua emitindo o token em `POST /auth/login`; não há login próprio
+na IA. Reutilizar o token da SessionManager no AuthInterceptor e manter uma URL
+base específica para a Trimmy, sem trocar a URL da API Java. Não incluir
+SECURITY_KEY no aplicativo. A IA consulta o mesmo cadastro de usuários do backend.
 
-Nenhuma tabela, vínculo, regra de negócio ou permissão foi alterada nesta revisão.
-O próximo ajuste exige confirmar e implantar a estrutura oficial ADMIN–CD e
-alinhar a autorização a uma fonte comum do backend, sem fallback para `cod_cd`
-quando o relacionamento não existir. O MCP anterior foi removido, junto das
-configurações, dependência direta e testes específicos; pode ser recuperado
-pelo histórico Git. Não foi implementado o novo MCP de gestão de incidentes.
+Em todos os endpoints: `Authorization: Bearer <JWT_DO_LOGIN>`.
+
+| Endpoint | Corpo | Sucesso |
+|---|---|---|
+| POST /chat | `{"mensagem":"Quais câmaras tenho acesso?"}` | JSON com resposta e agentes_chamados |
+| POST /chat/encerrar | Sem corpo | JSON com resumo, possivelmente null |
+| POST /relatorios/pdf | `{"cd_id":1,"camara_id":null,"data_inicial":"2026-10-01","data_final":"2026-10-15"}` | Bytes application/pdf, attachment, no-store |
+| GET /observabilidade | Sem corpo | JSON de métricas e premissas |
+
+401 exige novo login no backend e atualização da sessão local; não repetir o
+mesmo token expirado. 403 indica permissão negada, não expiração. Tratar também
+422 (filtros), 409 (conflito), 502 (validação/modelo) e 503 (indisponibilidade)
+usando o campo detail, sem apresentar erro como leitura de temperatura ou PDF.
+Não repetir automaticamente um POST de relatório: cada sucesso registra auditoria.
+O download deve ler bytes do corpo e o nome de Content-Disposition, não JSON.
+
+Para emulador Android padrão, o host do computador é 10.0.2.2; em aparelho físico,
+usar o IP do computador na mesma rede. 127.0.0.1 no celular aponta para o celular.
+Para teste em rede, iniciar uvicorn com --host 0.0.0.0 --port 8000 e liberar somente
+a rede necessária. HTTP local depende da configuração Android de tráfego claro;
+publicação requer HTTPS. Não é necessário liberar CORS para aplicativo Android nativo.
+
+O Retrofit atual usa timeout de leitura de 15 s. A integração deve usar um cliente
+próprio para IA, ajustar o timeout conforme as medidas e mostrar carregamento,
+sem alterar o cliente dos endpoints rápidos do Java. Os provedores têm timeout
+por chamada; o fluxo completo pode consumir mais tempo. Não há prazo máximo
+comprovado por uma única medida. Nenhum arquivo Android foi modificado.
+
+### Evidências desta adequação
+
+Em 01/11/2026, consultas reais somente de leitura confirmaram: ADMIN com cinco
+CDs vinculados e cinco câmaras permitidas; GESTOR e OPERADOR com uma câmara
+cada no respectivo CD; SUPER_ADMIN com cinquenta câmaras. Os snapshots de
+relatório passaram para os quatro perfis, sem gerar auditoria de download.
+São observações do banco de testes nessa execução, não valores fixos esperados.
+
+Uma chamada ao /chat, com serviços reais e JWT temporário assinado localmente,
+respondeu 200 em 24,56 s para “Quais câmaras eu tenho acesso?”, pelos nós roteador,
+monitoramento, orquestrador e juiz. Resposta: “Claro! Setor C - Corredor 5:
+Limites cadastrados: -25.00 a -18.00 °C.” /observabilidade respondeu 200 em 3,43 s,
+com premissas no contrato. Medição pelo TestClient, incluindo autenticação,
+bancos e provedores; não é medição de rede Android nem percentil de produção.
+A primeira chamada do processo também pode incluir inicialização de clientes.
+
+O Java não estava acessível em 127.0.0.1:8080. Assim, não houve emissão de token
+por /auth/login nesta validação. Não se registraram tokens, chaves ou credenciais.
+O PDF de teste com duas câmaras foi renderizado e suas duas páginas foram
+inspecionadas visualmente; os rótulos por localização e a paginação permaneceram
+legíveis. Esse PDF usa fixtures de apresentação, não comprova dados operacionais
+ou aprovação do juiz em download real. Nenhuma chamada real ao juiz de PDF foi
+necessária para verificar a troca de rótulos.
+
+No mobile atual, LoginActivity também tem fallback de demonstração quando o
+login falha. Esse modo não equivale a autenticação na Trimmy: sem JWT válido,
+a IA retorna 401, independentemente do cargo exibido localmente. A integração
+Android deve tratar essa situação; o fallback não foi alterado nesta entrega.
+
+Verificação final: 189 testes unitários passaram, 6 integrações opt-in ficaram
+fora dessa execução; Ruff sem erros. As verificações reais relatadas acima foram
+executadas separadamente, sem alterar regras ou o schema.

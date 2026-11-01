@@ -1,6 +1,6 @@
 # Memória da Trimmy
 
-POST `/chat` continua recebendo somente `token` e `mensagem`. O servidor mantém
+POST `/chat` continua recebendo somente `mensagem`, com JWT no cabeçalho Bearer. O servidor mantém
 uma sessão ativa por usuário em `Skadi.sessoes_trimmy`; as últimas 20 mensagens
 dessa sessão alimentam o contexto imediato. A coleção antiga `conversas` não é
 apagada nem migrada automaticamente.
@@ -10,7 +10,7 @@ anteriores. A sessão é vinculada no início do turno: pergunta e resposta são
 gravadas juntas com um único `$push/$each`. Se a sessão for encerrada durante a
 consulta, o turno não é transferido para uma sessão nova e a API retorna 409.
 
-POST `/chat/encerrar` recebe `{"token": "teste"}`. Gera um resumo com o modelo
+POST `/chat/encerrar` não exige corpo; usa `Authorization: Bearer <JWT>`. Gera um resumo com o modelo
 rápido e o indexa no Qdrant antes de encerrar a sessão. Retorna `{"resumo": "..."}`
 ou `{"resumo": null}` se não houver sessão/mensagens. A próxima mensagem cria
 outra sessão. O aplicativo precisa chamar explicitamente essa rota; fechar o

@@ -38,7 +38,7 @@ disponíveis, o retorno é `200` com as métricas.
 - `roi`: `(benefício estimado - custo estimado) / custo estimado * 100`.
   Benefício = resoluções técnicas × minutos manuais evitados / 60 × custo/hora USD.
   A definição foi delegada pelo usuário; as premissas devem ser configuradas em
-  `ROI_TEMPO_MANUAL_MINUTOS` e `ROI_CUSTO_HORA_USD`, sem valores padrão. Sem
+  `ROI_TEMPO_MANUAL_MINUTOS` e `ROI_CUSTO_HORA_USD`, com padrão acadêmico explícito de 5 minutos e US$ 5/hora. Sem
   premissas válidas ou custo positivo, retorna `null` com motivo. Não representa
   economia comprovada, faturamento nem cobrança real da conta gratuita.
 - `turnos_recentes`: até 50 turnos recentes, sem conteúdo de mensagens.
@@ -53,7 +53,7 @@ São hipóteses ilustrativas, não tempos medidos nem remuneração real da equi
 Os cinco minutos representam a consulta manual de câmaras, leituras, limites e
 alertas que a interação pode reunir; o custo de US$ 5 por hora serve somente
 como parâmetro de comparação. O benefício simulado é de US$ 0,4167 por resolução
-técnica. O código não transforma essas hipóteses em padrão obrigatório.
+técnica. São os padrões acadêmicos configuráveis, não parâmetros operacionais obrigatórios.
 Para uso real, substituir por medição de tempo e custo aprovados pelo projeto.
 Com custo estimado zero, o ROI percentual permanece indisponível: não é infinito.
 
@@ -76,3 +76,19 @@ cliente.
 O contexto da telemetria usa ContextVar para acompanhar as threads do grafo.
 Falha do juiz conta como erro, sua reprovação como bloqueio; não entram como
 resolução técnica. A cópia redundante de turnos em memória foi removida.
+
+## Demonstração reproduzível dos cálculos
+
+Exemplo exclusivamente numérico, coberto por teste unitário: uma interação
+aprovada com custo estimado de US$ 0,01. Premissas: 5 minutos, US$ 5/hora e uma
+interação por usuário/semana. Benefício = 5/60 × 5 = US$ 0,416667; custo por
+resolução = US$ 0,01; ROI = 4066,67%. Projeção de 100 usuários = US$ 1,00;
+de 1000 usuários = US$ 10,00. Não são resultados medidos nem fatura dos provedores.
+
+`premissas` expõe minutos, custo/hora, frequência e tamanho da amostra.
+`roi.beneficio_estimado_usd` explicita o benefício. Sem turnos, resoluções ou
+premissas válidas, o indicador aplicável é null com motivo. Custo zero não gera
+ROI infinito. Chamadas com modelos sem preço conhecido invalidam o custo total,
+projeções e ROI, sem atribuir gratuidade. `modelos_sem_preco` identifica essas
+lacunas; `custo_parcial_conhecido_usd` é apenas a soma conhecida, não custo total.
+Os preços existentes são referências de estimativa, não cobrança comprovada.
