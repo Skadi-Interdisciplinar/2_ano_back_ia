@@ -60,11 +60,11 @@ def _tokens(mensagem: Any) -> tuple[int, int]:
     )
 
 
-def estimar_custo(modelo: str, entrada: int, saida: int) -> float:
-    """Aplica somente preços conhecidos; modelo desconhecido não acrescenta custo."""
+def estimar_custo(modelo: str, entrada: int, saida: int) -> float | None:
+    """Preço ausente não significa gratuidade."""
     precos = PRECOS_POR_MILHAO.get(_nome_modelo(modelo))
     if precos is None:
-        return 0.0
+        return None
     return (entrada * precos[0] + saida * precos[1]) / 1_000_000
 
 
@@ -196,7 +196,8 @@ def fechar_turno(*, turno_id: str, rota: str, status: str) -> None:
             "latencia_total_ms": round((time.perf_counter() - inicio) * 1_000),
             "tokens_entrada": sum(item["tokens_entrada"] for item in chamadas),
             "tokens_saida": sum(item["tokens_saida"] for item in chamadas),
-            "custo_usd": sum(item["custo_usd"] for item in chamadas),
+            "custo_usd": (sum(item["custo_usd"] for item in chamadas)
+                          if all(item["custo_usd"] is not None for item in chamadas) else None),
             "chamadas": chamadas,
             "etapas": etapas,
         }
@@ -217,30 +218,39 @@ def _p95(valores: list[int]) -> int | None:
 
 
 def painel_mobile() -> dict[str, Any]:
-    """Contrato persistido para a tela mobile, restrito ao SUPER_ADMIN."""
+    """Métricas técnicas e cenário financeiro acadêmico para o mobile."""
 
     turnos = list(reversed(_carregar_turnos()))
     chamadas = [chamada for turno in turnos for chamada in turno.get("chamadas", [])]
     etapas = [etapa for turno in turnos for etapa in turno.get("etapas", [])]
 
     latencias = [item["latencia_total_ms"] for item in turnos]
-    custo_total = sum(item["custo_usd"] for item in turnos)
+    sem_preco = sorted({item.get("modelo", "desconhecido") for item in chamadas
+                       if item.get("custo_usd") is None or _nome_modelo(item.get("modelo")) not in PRECOS_POR_MILHAO})
+    custo_completo = not sem_preco and all(item.get("custo_usd") is not None for item in turnos)
+    custo_total = sum(item.get("custo_usd") or 0 for item in turnos)
     total_turnos = len(turnos)
     erros = sum(item["status"] == "erro" for item in turnos)
     resolucoes = sum(item["status"] == "ok" for item in turnos)
-    custo_medio = (custo_total / total_turnos) if total_turnos else None
+    custo_medio = (custo_total / total_turnos) if total_turnos and custo_completo else None
     por_agente: dict[str, list[int]] = {}
     for etapa in etapas:
         por_agente.setdefault(etapa["agente"], []).append(etapa["latencia_ms"])
     roi = None
     motivo_roi = "Configure tempo manual evitado em minutos e custo por hora em USD para estimar o benefício."
+    beneficio = None
+    minutos = custo_hora = None
     try:
         minutos = float(config.ROI_TEMPO_MANUAL_MINUTOS)
         custo_hora = float(config.ROI_CUSTO_HORA_USD)
         if not all(math.isfinite(v) and v >= 0 for v in (minutos, custo_hora)):
             raise ValueError
-        if custo_total > 0:
-            beneficio = resolucoes * minutos / 60 * custo_hora
+        beneficio = resolucoes * minutos / 60 * custo_hora
+        if not custo_completo:
+            motivo_roi = "Estimativa incompleta: há chamadas sem preço conhecido. Não é possível calcular ROI."
+        elif not total_turnos:
+            motivo_roi = "Sem turnos registrados para calcular ROI."
+        elif custo_total > 0:
             roi = round((beneficio - custo_total) / custo_total * 100, 2)
             motivo_roi = ("Estimativa: benefício = resoluções técnicas × minutos manuais evitados / 60 × custo/hora USD; "
                           "ROI = (benefício - custo estimado dos modelos) / custo estimado dos modelos × 100. "
@@ -248,14 +258,16 @@ def painel_mobile() -> dict[str, Any]:
         else:
             motivo_roi = "Sem custo estimado positivo, não é possível calcular o percentual de ROI."
     except (TypeError, ValueError):
-        pass
+        minutos = custo_hora = None
 
     def cenario(usuarios: int) -> dict[str, Any]:
         return {
             "usuarios_semanais": usuarios,
             "interacoes_por_usuario": 1,
-            "premissa": "Uma interação por usuário na semana; ajuste no aplicativo se a premissa mudar.",
+            "premissa": "Uma interação por usuário na semana; custo médio da amostra × usuários. Não é cobrança real.",
             "custo_estimado_usd": round(custo_medio * usuarios, 6) if custo_medio is not None else None,
+            "motivo": ("Estimativa baseada nos turnos da amostra." if custo_medio is not None else
+                       "Sem turnos ou com preços desconhecidos; projeção indisponível."),
         }
 
     return {
@@ -269,7 +281,10 @@ def painel_mobile() -> dict[str, Any]:
             "latencia_p95_ms": _p95(latencias),
             "tokens_entrada": sum(item["tokens_entrada"] for item in chamadas),
             "tokens_saida": sum(item["tokens_saida"] for item in chamadas),
-            "custo_estimado_usd": round(custo_total, 6),
+            "custo_estimado_usd": round(custo_total, 6) if custo_completo else None,
+            "custo_parcial_conhecido_usd": round(sum(c.get("custo_usd") or 0 for c in chamadas), 6),
+            "estimativa_custo_completa": custo_completo,
+            "modelos_sem_preco": sem_preco,
             "custo_medio_por_turno_usd": round(custo_medio, 6) if custo_medio is not None else None,
         },
         "latencia_interagentes": [
@@ -278,13 +293,22 @@ def painel_mobile() -> dict[str, Any]:
         ],
         "projecoes_semanais": [cenario(100), cenario(1_000)],
         "custo_por_resolucao": {
-            "valor_usd": round(custo_total / resolucoes, 6) if resolucoes else None,
-            "motivo": "Custo estimado de todos os turnos dividido pelos concluídos e aprovados pelo juiz. "
-                      "Resolução técnica de uma interação; não comprova resolução de alertas ou falhas.",
+            "valor_usd": round(custo_total / resolucoes, 6) if resolucoes and custo_completo else None,
+            "motivo": ("Estimativa incompleta: há chamadas sem preço conhecido." if not custo_completo else
+                       "Sem resoluções técnicas aprovadas." if not resolucoes else
+                       "Custo de todos os turnos / interações concluídas e aprovadas pelo juiz; não é resolução de alertas."),
         },
         "roi": {
             "valor_percentual": roi,
             "motivo": motivo_roi,
+            "beneficio_estimado_usd": round(beneficio, 6) if beneficio is not None else None,
+        },
+        "premissas": {
+            "tipo": "Cenário acadêmico ilustrativo, sem comprovação de economia real.",
+            "tempo_manual_evitado_minutos": minutos,
+            "custo_hora_usd": custo_hora,
+            "interacoes_por_usuario_semana": 1,
+            "turnos_na_amostra": total_turnos,
         },
         "turnos_recentes": [
             {chave: valor for chave, valor in turno.items() if chave not in {"_id", "id", "chamadas", "etapas"}}

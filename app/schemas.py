@@ -80,7 +80,10 @@ class ResumoObservabilidade(BaseModel):
     latencia_p95_ms: int | None
     tokens_entrada: int
     tokens_saida: int
-    custo_estimado_usd: float
+    custo_estimado_usd: float | None
+    custo_parcial_conhecido_usd: float = 0
+    estimativa_custo_completa: bool = True
+    modelos_sem_preco: list[str] = Field(default_factory=list)
     custo_medio_por_turno_usd: float | None
 
 
@@ -95,12 +98,22 @@ class ProjecaoSemanal(BaseModel):
     interacoes_por_usuario: int
     premissa: str
     custo_estimado_usd: float | None
+    motivo: str = ""
 
 
 class MetricaFinanceira(BaseModel):
     valor_usd: float | None = None
     valor_percentual: float | None = None
     motivo: str
+    beneficio_estimado_usd: float | None = None
+
+
+class PremissasObservabilidade(BaseModel):
+    tipo: str
+    tempo_manual_evitado_minutos: float | None
+    custo_hora_usd: float | None
+    interacoes_por_usuario_semana: int = 1
+    turnos_na_amostra: int
 
 
 class TurnoRecente(BaseModel):
@@ -110,7 +123,7 @@ class TurnoRecente(BaseModel):
     latencia_total_ms: int
     tokens_entrada: int
     tokens_saida: int
-    custo_usd: float
+    custo_usd: float | None
 
 
 class ObservabilidadeResponse(BaseModel):
@@ -120,4 +133,5 @@ class ObservabilidadeResponse(BaseModel):
     projecoes_semanais: list[ProjecaoSemanal]
     custo_por_resolucao: MetricaFinanceira
     roi: MetricaFinanceira
+    premissas: PremissasObservabilidade | None = None
     turnos_recentes: list[TurnoRecente]

@@ -190,3 +190,52 @@ def test_roi_sem_premissas_validas_nao_inventa_beneficio(monkeypatch, valor):
     monkeypatch.setattr(observabilidade.config, "ROI_CUSTO_HORA_USD", "20")
 
     assert observabilidade.painel_mobile()["roi"]["valor_percentual"] is None
+
+
+def test_projecoes_e_roi_demonstram_premissas_do_cenario_academico(monkeypatch):
+    monkeypatch.setattr(observabilidade, "_carregar_turnos", Mock(return_value=[{
+        "status": "ok", "latencia_total_ms": 500, "custo_usd": 0.01,
+        "data_hora": "2026-11-01T10:00:00+00:00", "rota": "faq", "tokens_entrada": 0, "tokens_saida": 0,
+    }]))
+    monkeypatch.setattr(observabilidade.config, "ROI_TEMPO_MANUAL_MINUTOS", "5")
+    monkeypatch.setattr(observabilidade.config, "ROI_CUSTO_HORA_USD", "5")
+
+    painel = ObservabilidadeResponse.model_validate(observabilidade.painel_mobile())
+
+    assert [p.custo_estimado_usd for p in painel.projecoes_semanais] == [1.0, 10.0]
+    assert painel.custo_por_resolucao.valor_usd == 0.01
+    assert painel.roi.beneficio_estimado_usd == 0.416667
+    assert painel.roi.valor_percentual == 4066.67
+    assert painel.premissas.turnos_na_amostra == 1
+
+
+def test_preco_desconhecido_nao_e_apresentado_como_custo_zero(monkeypatch):
+    assert observabilidade.estimar_custo("modelo-sem-preco", 100, 100) is None
+    monkeypatch.setattr(observabilidade, "_carregar_turnos", Mock(return_value=[{
+        "status": "ok", "latencia_total_ms": 500, "custo_usd": 0,
+        "data_hora": "2026-11-01T10:00:00+00:00", "rota": "faq", "tokens_entrada": 100, "tokens_saida": 100,
+        "chamadas": [{"modelo": "modelo-sem-preco", "custo_usd": 0, "tokens_entrada": 100, "tokens_saida": 100}],
+    }]))
+
+    painel = ObservabilidadeResponse.model_validate(observabilidade.painel_mobile())
+
+    assert painel.resumo.custo_estimado_usd is None
+    assert painel.resumo.estimativa_custo_completa is False
+    assert painel.resumo.modelos_sem_preco == ["modelo-sem-preco"]
+    assert painel.projecoes_semanais[0].custo_estimado_usd is None
+    assert painel.custo_por_resolucao.valor_usd is None
+    assert painel.roi.valor_percentual is None
+
+
+def test_custo_zero_nao_produz_roi_infinito(monkeypatch):
+    monkeypatch.setattr(observabilidade, "_carregar_turnos", Mock(return_value=[{
+        "status": "ok", "latencia_total_ms": 100, "custo_usd": 0,
+        "data_hora": "2026-11-01T10:00:00+00:00", "rota": "orquestrador",
+        "tokens_entrada": 0, "tokens_saida": 0,
+    }]))
+
+    painel = observabilidade.painel_mobile()
+
+    assert painel["custo_por_resolucao"]["valor_usd"] == 0
+    assert painel["roi"]["valor_percentual"] is None
+    assert "positivo" in painel["roi"]["motivo"]
