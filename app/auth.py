@@ -38,7 +38,7 @@ def obter_usuario_autenticado(token: str) -> AuthenticatedUser:
     tamanho = len(chave.encode("utf-8"))
     algoritmo = "HS512" if tamanho >= 64 else "HS384" if tamanho >= 48 else "HS256"
     try:
-        claims = jwt.decode(token, chave, algorithms=[algoritmo], options={"require": ["sub", "iat", "exp"]})
+        claims = jwt.decode(token, chave, algorithms=["HS256", "HS384", "HS512"], options={"require": ["sub", "iat", "exp"]})
         if (not isinstance(claims["sub"], str) or not claims["sub"].strip()
                 or type(claims["iat"]) is not int or type(claims["exp"]) is not int
                 or claims["exp"] <= claims["iat"]):
