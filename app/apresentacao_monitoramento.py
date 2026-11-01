@@ -42,13 +42,13 @@ def apresentar_consultas(mensagens: list) -> str | None:
         camaras = dados if isinstance(dados, list) else dados["camaras"]
         if not isinstance(dados, list) and dados.get("status") == "ambigua":
             respostas.append("Encontrei mais de uma opção para você. Qual câmara deseja consultar? " + "; ".join(
-                f'{c["modelo"]} — {c["localizacao"]}' for c in camaras
+                c["localizacao"] for c in camaras
             ) + ".")
             continue
         if not camaras:
             respostas.append("Não encontrei câmaras com essa seleção no seu acesso permitido.")
         for camara in camaras:
-            texto = f'{camara["modelo"]} — {camara["localizacao"]}: '
+            texto = f'{camara["localizacao"]}: '
             if "leitura_disponivel" in camara:
                 if camara["leitura_disponivel"]:
                     texto += f'última leitura de {camara["temperatura"]} °C, registrada em {camara["data_hora"]}. '

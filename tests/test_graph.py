@@ -147,7 +147,7 @@ def test_monitoramento_executa_tool_em_um_unico_turno_de_modelo():
         assert camara_id == 3
         return {
             "camaras": [{
-                "modelo": "FM-400",
+
                 "localizacao": "Câmara 03",
                 "leitura_disponivel": True,
                 "temperatura": "4.00",

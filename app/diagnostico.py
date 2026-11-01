@@ -149,7 +149,7 @@ def validar_analise(proposta: PropostaDiagnostico, contexto: ContextoDiagnostico
         if contexto.regras_consultadas and not contexto.evidencias:
             analise.limitacoes = ["Não foi identificado conteúdo aprovado aplicável para explicar esse assunto."]
             return analise
-        analise.perguntas = ["Qual câmara deseja analisar? Informe modelo ou localização."]
+        analise.perguntas = ["Qual câmara deseja analisar? Informe ID ou localização."]
         return analise
     evidencias = contexto.evidencias.get(proposta.evidencia_ref)
     if evidencias is None:
@@ -309,7 +309,7 @@ def apresentar_diagnostico(analise: AnaliseDiagnostico) -> str:
     dados = analise.evidencias
     if dados.get("camara"):
         camara = dados["camara"]
-        partes.append(f"Claro! Consultei os registros da {camara['modelo']}, em {camara['localizacao']}.")
+        partes.append(f"Claro! Consultei os registros da {camara['localizacao']}.")
         leitura = dados.get("leitura") or {}
         if leitura and dados.get("comparacao") is not None:
             partes.append(
@@ -337,8 +337,8 @@ def apresentar_diagnostico(analise: AnaliseDiagnostico) -> str:
             "A última leitura não foi necessariamente registrada no momento do alerta."
         )
     for opcao in dados.get("opcoes", []):
-        if "modelo" in opcao:
-            partes.append(f"Opção: {opcao['modelo']} — {opcao['localizacao']}.")
+        if "localizacao" in opcao:
+            partes.append(f"Opção: {opcao['localizacao']}.")
         elif "tipo" in opcao:
             partes.append(f"Ocorrência: {opcao['tipo']} — {opcao['data_hora']} ({opcao['status']}).")
     for justificativa in dados.get("justificativas", []):
@@ -374,7 +374,7 @@ def executar_diagnostico(mensagens: list, modelo) -> AnaliseDiagnostico:
 
     usuario_id = obter_usuario_contexto()
     escopo = validar_acesso(usuario_id)
-    if escopo.nivel_acesso != "SUPER_ADMIN" and escopo.cd_id is None:
+    if escopo.nivel_acesso != "SUPER_ADMIN" and not escopo.cds_permitidos:
         raise PermissionError("Usuário sem escopo de diagnóstico.")
     contexto = ContextoDiagnostico(usuario_id)
     for i, mensagem in enumerate(mensagens):

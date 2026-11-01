@@ -43,6 +43,43 @@ def test_super_admin_precisa_informar_cd():
         _cd_permitido(escopo, None)
 
 
+def test_admin_exige_selecao_explicita_de_cd_vinculado():
+    escopo = EscopoAcesso(12, "ADMIN", None, (2, 5))
+
+    assert _cd_permitido(escopo, 5) == 5
+    with pytest.raises(FiltroRelatorioInvalido):
+        _cd_permitido(escopo, None)
+    with pytest.raises(PermissionError):
+        _cd_permitido(escopo, 7)
+
+
+def test_pdf_usa_localizacoes_sem_exigir_modelo_de_camara():
+    from app.pdf_relatorio import renderizar_pdf
+    from pypdf import PdfReader
+
+    horario = datetime.fromisoformat("2026-11-01T08:00:00")
+    camaras = [{"camara_id": n, "localizacao": f"Setor de teste {n}", "termometro": n,
+                "limite_minimo": "2", "limite_maximo": "6"} for n in (1, 2)]
+    dados = {
+        "cd_id": 1, "cd_nome": "CD teste", "camaras": camaras, "todas": True,
+        "data_inicial": horario.date(), "data_final": horario.date(), "gerado_em": horario,
+        "leituras": [(1, Decimal(4), horario, "teste-1"), (2, Decimal(5), horario, "teste-2")],
+        "alertas": [], "quantidade_leituras": 2, "minima": Decimal(4), "media": Decimal("4.5"),
+        "maxima": Decimal(5), "primeira_leitura": horario, "ultima_leitura": horario,
+        "total_alertas": 0, "ocorrencias_criticas": 0,
+    }
+
+    pdf = renderizar_pdf(dados)
+    paginas = PdfReader(BytesIO(pdf)).pages
+    texto = " ".join(p.extract_text() for p in paginas)
+
+    assert pdf.startswith(b"%PDF")
+    assert len(paginas) >= 2
+    assert "Setor de teste 1" in texto
+    assert "Setor de teste 2" in texto
+    assert "Sem alertas no período" in texto
+
+
 def test_reconhece_grandeza_critica_sem_alterar_valor_do_alerta():
     assert _gravidade_critica("CRITICA") is True
     assert _gravidade_critica("crítica") is True
@@ -69,12 +106,12 @@ def test_registra_hash_e_download_do_relatorio(monkeypatch):
     conexao.commit.assert_called_once()
 
 
-@pytest.mark.parametrize("nivel", ["ADMIN", "OPERADOR", "GESTOR"])
+@pytest.mark.parametrize("nivel", ["OPERADOR", "GESTOR"])
 def test_perfis_podem_gerar_relatorio_do_proprio_cd(nivel):
     assert _cd_permitido(EscopoAcesso(12, nivel, 2), None) == 2
 
 
-@pytest.mark.parametrize("nivel", ["ADMIN", "OPERADOR", "GESTOR"])
+@pytest.mark.parametrize("nivel", ["OPERADOR", "GESTOR"])
 def test_perfis_nao_podem_gerar_relatorio_de_outro_cd(nivel):
     with pytest.raises(PermissionError):
         _cd_permitido(EscopoAcesso(12, nivel, 2), 3)
@@ -101,7 +138,7 @@ def test_snapshot_preserva_gravidade_e_calcula_media_de_todas_as_leituras(monkey
     monkeypatch.setattr(relatorios, "_selecionar_camaras", Mock(return_value=[
         {"camara_id": 3, "termometro": 1}, {"camara_id": 4, "termometro": 2},
     ]))
-    filtros = RelatorioRequest(token="teste", data_inicial=date(2026, 10, 28), data_final=date(2026, 10, 29))
+    filtros = RelatorioRequest(data_inicial=date(2026, 10, 28), data_final=date(2026, 10, 29))
 
     dados = relatorios.consultar_dados_relatorio(12, filtros)
 

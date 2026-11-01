@@ -36,7 +36,7 @@ consumo ou descarte.
 
 ### FAQ-006 - Como identifico uma câmara na conversa?
 
-Informe a localização ou o modelo cadastrado. Você também pode informar o
+Informe a localização cadastrada. Você também pode informar o
 identificador da câmara, se já o conhecer. Se houver mais de uma correspondência,
 a Trimmy pedirá uma informação adicional para identificar a câmara certa.
 
@@ -88,8 +88,8 @@ feita pelo chat e depende da integração desse botão com o serviço de relató
 
 ### FAQ-019 - Quem pode gerar relatórios?
 
-Na implementação atual, ADMIN, GESTOR e OPERADOR podem gerar relatórios do próprio
-centro de distribuição, e SUPER_ADMIN pode selecionar um centro de distribuição.
+ADMIN pode gerar relatórios dos CDs vinculados a ele, escolhendo um CD por relatório.
+GESTOR e OPERADOR ficam no próprio CD. SUPER_ADMIN pode selecionar qualquer CD.
 
 ### FAQ-020 - O que aparece no relatório?
 

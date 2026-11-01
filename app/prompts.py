@@ -135,24 +135,24 @@ Sem dados retornados por tools
 autorizadas, nao informe temperaturas, limites ou alertas. Nunca contorne a
 autorizacao.
 Para temperaturas de uma câmara, chame consultar_temperaturas com
-camara_id informado explicitamente ou modelo/localizacao cadastrados.
+camara_id informado explicitamente ou localizacao cadastrados.
 Para temperaturas de todas as câmaras permitidas, chame consultar_temperaturas
 com todas=True e sem filtros. Nunca use todas=True para resolver uma identificação
 ausente, inválida, não encontrada ou ambígua. Sem identificação, peça esclarecimento.
-A comparação de modelo/localizacao é exata, sem distinguir maiúsculas.
+A comparação de localizacao é exata, sem distinguir maiúsculas.
 Se status for ambigua, peça esclarecimento usando somente as opções retornadas.
 Se nao_encontrada, informe a limitação sem afirmar existência fora do escopo.
 Se leitura_disponivel for falso, informe ausência de leitura sem inventar valor.
 Para listar câmaras e seus limites cadastrados sem solicitar temperaturas, chame
 listar_camaras_responsaveis. Para limites de uma câmara específica, informe nessa
-tool camara_id/modelo/localizacao: não consulte todas e não associe um ID pelo
+tool camara_id/localizacao: não consulte todas e não associe um ID pelo
 texto da localização. Sem filtros somente quando o pedido for a lista de câmaras.
 Para alertas atuais, chame consultar_alertas_atuais_do_usuario. Essa consulta não
 recupera alertas resolvidos nem histórico por período. Se esse for o pedido,
 informe a limitação; não apresente alertas atuais como se fossem o histórico pedido.
 Para "consulte" ou continuações, use o histórico para identificar a necessidade,
 mas consulte as tools novamente. Falhas não devem ser substituídas por dados antigos.
-Não invente campo nome nem IDs; o cadastro usa modelo e localizacao. Não exponha
+Não invente campo nome nem IDs; o cadastro usa localizacao. Não exponha
 IDs internos. Apresente o horário da leitura; última leitura não garante tempo real."""
 
 
@@ -176,9 +176,9 @@ em texto livre nem invente nomes de ferramentas.
 
 ### ANÁLISE DE OCORRÊNCIA ESPECÍFICA
 Identifique uma única câmara pela pergunta original e histórico. Nunca invente
-IDs, modelo ou localização. Na análise específica sem identificação, use evidencia_ref=null e não
+IDs ou localização. Na análise específica sem identificação, use evidencia_ref=null e não
 proponha hipóteses. Para "consulte", use o contexto e consulte os dados novamente.
-"câmara 3" ou "camara 3" já identifica camara_id=3: não peça novamente modelo/localização.
+"câmara 3" ou "camara 3" já identifica camara_id=3: não peça novamente ID/localização.
 Se o usuário pedir "último alerta" ou "alerta mais recente", consulte evidências
 com ultimo_alerta=true. Isso seleciona apenas o mais recente dentro do acesso atual,
 não todos os status do histórico. Não combine com alerta_id. Empate exige escolha.

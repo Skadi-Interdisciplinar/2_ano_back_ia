@@ -35,9 +35,11 @@ def _gravidade_critica(gravidade: object) -> bool:
 
 
 def _cd_permitido(escopo, cd_id: int | None) -> int:
-    if escopo.nivel_acesso == "SUPER_ADMIN":
+    if escopo.nivel_acesso in {"SUPER_ADMIN", "ADMIN"}:
         if cd_id is None:
             raise FiltroRelatorioInvalido("Informe o CD para gerar o relatório.")
+        if not escopo.permite_cd(cd_id):
+            raise PermissionError("CD fora do escopo permitido.")
         return cd_id
     if escopo.cd_id is None:
         raise PermissionError("Seu usuário não possui um centro de distribuição vinculado para gerar relatórios.")
@@ -61,7 +63,7 @@ def consultar_dados_relatorio(usuario_id: int, filtros: RelatorioRequest) -> dic
                 raise SelecaoRelatorioNaoEncontrada("Seleção não encontrada no escopo permitido.")
             camaras = _selecionar_camaras(
                 escopo, FiltrosCamaraArgs(camara_id=filtros.camara_id), cursor=cursor,
-                cd_id=cd_id if escopo.nivel_acesso == "SUPER_ADMIN" else None,
+                cd_id=cd_id,
             )
             if not camaras:
                 raise SelecaoRelatorioNaoEncontrada("Seleção não encontrada no escopo permitido.")

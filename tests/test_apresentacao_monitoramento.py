@@ -6,7 +6,7 @@ from langchain_core.messages import ToolMessage
 
 def test_apresenta_temperatura_e_limites_consultados():
     dados = {"status": "ok", "camaras": [{
-        "modelo": "FM-400", "localizacao": "Câmara 03", "temperatura": "4.00",
+        "localizacao": "Câmara 03", "temperatura": "4.00",
         "data_hora": "2026-10-14T09:04:00-03:00", "leitura_disponivel": True,
         "limite_minimo": "2.00", "limite_maximo": "6.00",
     }]}

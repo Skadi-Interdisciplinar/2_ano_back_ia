@@ -20,7 +20,7 @@ from langchain_core.messages import HumanMessage
 
 def test_apresenta_limite_quando_a_leitura_esta_dentro_da_faixa():
     analise = AnaliseDiagnostico(evidencias={
-        "camara": {"modelo": "FM-400", "localizacao": "Câmara 03", "limite_minimo": "2.00", "limite_maximo": "6.00"},
+        "camara": {"localizacao": "Câmara 03", "limite_minimo": "2.00", "limite_maximo": "6.00"},
         "leitura": {"temperatura": "4.00", "data_hora": "2026-10-14T09:04:00-03:00"},
         "comparacao": "dentro_faixa",
     })
@@ -28,7 +28,7 @@ def test_apresenta_limite_quando_a_leitura_esta_dentro_da_faixa():
     resposta = apresentar_diagnostico(analise)
 
     assert resposta.startswith("Claro!")
-    assert "FM-400" in resposta
+    assert "Câmara 03" in resposta
     assert "dentro da faixa" in resposta
 
 
@@ -93,7 +93,7 @@ def test_aplica_cada_regra_somente_com_os_relatos_exigidos(regra_id):
 def test_leitura_invalida_nao_e_apresentada_como_temperatura(temperatura):
     contexto = ContextoDiagnostico(usuario_id=12)
     contexto.evidencias["consulta-1"] = {
-        "status": "ok", "camara": {"modelo": "FM-400", "localizacao": "Câmara 03",
+        "status": "ok", "camara": {"localizacao": "Câmara 03",
                                     "limite_minimo": "2", "limite_maximo": "6"},
         "leitura": {"temperatura": temperatura, "data_hora": "2026-10-29T10:00:00-03:00"},
     }

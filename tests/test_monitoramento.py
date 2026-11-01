@@ -8,7 +8,7 @@ from app.tools.contexto import definir_usuario_contexto, restaurar_usuario_conte
 
 def test_consulta_a_ultima_leitura_da_camara_permitida(monkeypatch):
     camara = {
-        "camara_id": 3, "modelo": "FM-400", "localizacao": "Câmara 03",
+        "camara_id": 3, "localizacao": "Câmara 03",
         "termometro": 9, "limite_minimo": "2.00", "limite_maximo": "6.00",
     }
     consultar_camaras = Mock(return_value=[camara])
@@ -20,12 +20,12 @@ def test_consulta_a_ultima_leitura_da_camara_permitida(monkeypatch):
 
     assert resultado["camaras"][0]["temperatura"] == "4.00"
     assert resultado["camaras"][0]["leitura_disponivel"] is True
-    consultar_camaras.assert_called_once_with(12, 3, None, None)
+    consultar_camaras.assert_called_once_with(12, 3, None)
 
 
 def test_informa_leitura_invalida_sem_inventar_temperatura(monkeypatch):
     camara = {
-        "camara_id": 3, "modelo": "FM-400", "localizacao": "Câmara 03",
+        "camara_id": 3, "localizacao": "Câmara 03",
         "termometro": 9, "limite_minimo": "2.00", "limite_maximo": "6.00",
     }
     monkeypatch.setattr(monitoramento, "consultar_camaras_permitidas", Mock(return_value=[camara]))
@@ -56,13 +56,13 @@ def test_tool_de_alertas_usa_usuario_do_contexto(monkeypatch):
 def test_selecao_de_camaras_aplica_cd_antes_do_filtro(nivel):
     cursor = Mock()
     cursor.fetchall.return_value = []
-    escopo = EscopoAcesso(12, nivel, None if nivel == "SUPER_ADMIN" else 2)
+    escopo = EscopoAcesso(12, nivel, None if nivel in {"SUPER_ADMIN", "ADMIN"} else 2, (2,) if nivel == "ADMIN" else ())
 
     monitoramento._selecionar_camaras(escopo, monitoramento.FiltrosCamaraArgs(camara_id=3), cursor=cursor)
 
     sql, parametros = cursor.execute.call_args.args
-    assert parametros == ((3,) if nivel == "SUPER_ADMIN" else (2, 3))
-    assert ("cod_cd = %s" in sql) is (nivel != "SUPER_ADMIN")
+    assert parametros == ((3,) if nivel == "SUPER_ADMIN" else ([2], 3))
+    assert ("cod_cd = ANY(%s)" in sql) is (nivel != "SUPER_ADMIN")
 
 
 @pytest.mark.parametrize("nivel", ["SUPER_ADMIN", "ADMIN", "GESTOR", "OPERADOR"])
@@ -71,7 +71,7 @@ def test_consulta_alertas_preserva_reconhecimento_proprio_e_escopo(monkeypatch, 
     cursor = conexao.cursor.return_value.__enter__.return_value
     cursor.fetchall.return_value = []
     monkeypatch.setattr(monitoramento, "get_conn", Mock(return_value=conexao))
-    monkeypatch.setattr(monitoramento, "validar_acesso", Mock(return_value=EscopoAcesso(12, nivel, 2)))
+    monkeypatch.setattr(monitoramento, "validar_acesso", Mock(return_value=EscopoAcesso(12, nivel, 2, (2,) if nivel == "ADMIN" else ())))
 
     monitoramento.consultar_alertas_permitidos(12, camara_id=3)
 
@@ -84,20 +84,20 @@ def test_consulta_alertas_preserva_reconhecimento_proprio_e_escopo(monkeypatch, 
 
 
 def test_camara_ambigua_nao_consulta_redis(monkeypatch):
-    camaras = [{"modelo": "FM-400", "localizacao": local, "limite_minimo": "2", "limite_maximo": "6"}
+    camaras = [{"localizacao": local, "limite_minimo": "2", "limite_maximo": "6"}
                for local in ("Carnes", "Bebidas")]
     monkeypatch.setattr(monitoramento, "consultar_camaras_permitidas", Mock(return_value=camaras))
     redis = Mock()
     monkeypatch.setattr(monitoramento, "_ultimas_leituras_permitidas", redis)
 
-    resultado = monitoramento.consultar_temperaturas_permitidas(12, modelo="FM-400")
+    resultado = monitoramento.consultar_temperaturas_permitidas(12, localizacao="Carnes")
 
     assert resultado["status"] == "ambigua"
     redis.assert_not_called()
 
 
 def test_temperaturas_de_todas_as_camaras_preservam_ausencia_de_leitura(monkeypatch):
-    camaras = [{"modelo": "FM-400", "localizacao": str(n), "termometro": n,
+    camaras = [{"localizacao": str(n), "termometro": n,
                 "limite_minimo": "2", "limite_maximo": "6"} for n in (3, 4)]
     monkeypatch.setattr(monitoramento, "consultar_camaras_permitidas", Mock(return_value=camaras))
     monkeypatch.setattr(monitoramento, "_ultimas_leituras_permitidas", Mock(return_value={
@@ -123,3 +123,27 @@ def test_leitura_e_busca_nos_lotes_anteriores_do_stream(monkeypatch):
 
     assert leituras["3"]["temperatura"] == "4"
     assert cliente.xrevrange.call_count == 2
+
+
+def test_admin_consulta_todos_os_cds_vinculados_com_sql_parametrizado():
+    cursor = Mock()
+    cursor.fetchall.return_value = [(3, "Câmara 03", 9, 2, 6)]
+
+    resultado = monitoramento._selecionar_camaras(
+        EscopoAcesso(12, "ADMIN", None, (2, 5)), monitoramento.FiltrosCamaraArgs(localizacao="Câmara 03"), cursor=cursor,
+    )
+
+    sql, parametros = cursor.execute.call_args.args
+    assert parametros == ([2, 5], "Câmara 03")
+    assert "modelo" not in sql
+    assert resultado[0]["termometro"] == 9
+    assert resultado[0]["localizacao"] == "Câmara 03"
+
+
+def test_admin_sem_vinculos_nao_consulta_camaras():
+    cursor = Mock()
+
+    with pytest.raises(PermissionError):
+        monitoramento._selecionar_camaras(EscopoAcesso(12, "ADMIN", 99), monitoramento.FiltrosCamaraArgs(), cursor=cursor)
+
+    cursor.execute.assert_not_called()

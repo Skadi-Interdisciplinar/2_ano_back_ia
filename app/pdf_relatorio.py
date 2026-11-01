@@ -212,7 +212,7 @@ def renderizar_pdf(dados: dict, *, conservador: bool = False) -> bytes:
     conteudo = [NextPageTemplate("Detalhes")]
     conteudo.extend([faixa("Resumo executivo do período"), Spacer(1, 10)])
     selecao = "Relatório de temperatura - Todas as câmaras" if dados["todas"] else (
-        f"{dados['camaras'][0]['modelo']} - {dados['camaras'][0]['localizacao']}")
+        dados["camaras"][0]["localizacao"])
     resumo = coluna([texto(f"Centro de distribuição: {dados['cd_nome']}", "titulo"),
                       texto(selecao, "nota"), Spacer(1, 7),
                       HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#DADADA")), Spacer(1, 8),
@@ -244,7 +244,7 @@ def renderizar_pdf(dados: dict, *, conservador: bool = False) -> bytes:
         cor = CORES_SERIES[i % len(CORES_SERIES)]
         estilo = "tracejada" if i // len(CORES_SERIES) % 2 else "contínua"
         conteudo.append(Paragraph(f'<font color="{cor}">Série {i + 1} ({estilo}): '
-                                 f'{escape(str(c["modelo"]))} - {escape(str(c["localizacao"]))}</font>', estilos["nota"]))
+                                 f'{escape(str(c["localizacao"]))}</font>', estilos["nota"]))
     sem_leituras = [c for c in dados["camaras"] if c not in ativas]
     if sem_leituras:
         conteudo.append(texto(f"Câmaras sem leituras no período: {len(sem_leituras)} de {len(dados['camaras'])}. Identificações nos detalhes.", "nota"))
@@ -255,7 +255,7 @@ def renderizar_pdf(dados: dict, *, conservador: bool = False) -> bytes:
                      PageBreak(), faixa("Câmaras selecionadas e disponibilidade"), Spacer(1, 10)])
     for c in dados["camaras"]:
         disponibilidade = "Sem leituras no período" if c in sem_leituras else "Com leituras no período"
-        conteudo.append(texto(f"{c['modelo']} - {c['localizacao']}: {disponibilidade}.", "nota"))
+        conteudo.append(texto(f"{c['localizacao']}: {disponibilidade}.", "nota"))
     conteudo.extend([texto("Estatísticas calculadas sobre todas as leituras da seleção, não média das médias. Cadastro e vínculo com termômetros são os atuais.", "nota"),
                      Spacer(1, 14), faixa("Ocorrências do período"), Spacer(1, 10),
                      texto("Inclui todos os status. Status e gravidade são os registrados na consulta, não uma reconstrução de seu estado passado.", "nota"), Spacer(1, 8)])
@@ -264,7 +264,7 @@ def renderizar_pdf(dados: dict, *, conservador: bool = False) -> bytes:
         linhas = [[texto(c, "rotulo") for c in ("Câmara", "Tipo", "Horário", "Gravidade", "Status")]]
         for _id, camara_id, tipo, data, gravidade, status in dados["alertas"]:
             c = camaras[camara_id]
-            linhas.append([texto(f"{c['modelo']} - {c['localizacao']}", "nota"), texto(tipo.replace("_", " "), "nota"),
+            linhas.append([texto(f"{c['localizacao']}", "nota"), texto(tipo.replace("_", " "), "nota"),
                            texto(data.strftime("%d/%m/%Y %H:%M:%S"), "nota"), texto(gravidade, "nota"), texto(status, "nota")])
         proporcoes = (0.25, 0.21, 0.21, 0.14, 0.19) if conservador else (0.28, 0.23, 0.21, 0.14, 0.14)
         tabela = Table(linhas, colWidths=[largura * p for p in proporcoes], repeatRows=1,
