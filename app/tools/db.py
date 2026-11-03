@@ -10,7 +10,7 @@ def get_conn():
     """Abre uma conexão PostgreSQL e traduz indisponibilidade de infraestrutura."""
 
     if not DATABASE_URL:
-        raise ServicoIndisponivel("DATABASE_URL não configurada.")
+        raise ServicoIndisponivel("DB_URL_PSYCOPG não configurada.")
 
     import psycopg2
 

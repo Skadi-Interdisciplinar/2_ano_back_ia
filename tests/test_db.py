@@ -8,7 +8,7 @@ from app.tools import db
 def test_exige_url_para_abrir_conexao(monkeypatch):
     monkeypatch.setattr(db, "DATABASE_URL", None)
 
-    with pytest.raises(ServicoIndisponivel, match="DATABASE_URL"):
+    with pytest.raises(ServicoIndisponivel, match="DB_URL_PSYCOPG"):
         db.get_conn()
 
 

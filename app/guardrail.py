@@ -23,7 +23,7 @@ _DADOS_PESSOAIS = (
 )
 _SEGREDOS = re.compile(
     r"\b(?:postgres(?:ql)?|mongodb(?:\+srv)?|rediss?|https?)://[^\s/:@]+:[^\s@]+@[^\s<>\"']+"
-    r"|\b(?:[A-Z_]*(?:API_KEY|DATABASE_URL|MONGODB_URI|REDIS_URL)|senha|password|token)\b[\"']?\s*[:=]\s*[\"']?[^\s\"']+"
+    r"|\b(?:[A-Z_]*(?:API_KEY|DATABASE_URL|DB_URL_PSYCOPG|MONGODB_URI|REDIS_URL)|senha|password|token)\b[\"']?\s*[:=]\s*[\"']?[^\s\"']+"
     r"|\bAuthorization\s*:\s*Bearer\s+\S+"
     r"|\b(?:gsk_|sk-)[A-Za-z0-9_-]{16,}\b"
     r"|\bAIza[A-Za-z0-9_-]{20,}\b"

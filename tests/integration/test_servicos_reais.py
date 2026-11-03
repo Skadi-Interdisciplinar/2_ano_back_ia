@@ -25,7 +25,7 @@ def test_postgresql_esta_acessivel():
     """Executa apenas SELECT 1 no banco operacional."""
 
     if not DATABASE_URL:
-        pytest.fail("DATABASE_URL nao configurada.")
+        pytest.fail("DB_URL_PSYCOPG nao configurada.")
     import psycopg2
 
     with psycopg2.connect(DATABASE_URL, connect_timeout=10) as conexao, conexao.cursor() as cursor:
