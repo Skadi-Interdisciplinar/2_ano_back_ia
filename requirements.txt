@@ -1,12 +1,2 @@
-fastapi
-uvicorn[standard]
-python-dotenv
-pydantic
-pymongo
-psycopg2-binary
-redis
-langchain
-langchain-google-genai
-langchain-groq
-langgraph
-pytest
+# Dependências centralizadas no pyproject.toml, incluindo ferramentas de teste.
+-e .[dev]

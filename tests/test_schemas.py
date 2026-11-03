@@ -1,10 +1,27 @@
-from app.schemas import ChatRequest, ChatResponse
+import pytest
+from app.schemas import ChatRequest, ChatResponse, RelatorioRequest
+from pydantic import ValidationError
 
 
-def test_chat_request_e_resposta():
-    requisicao = ChatRequest(token="  token  ", mensagem="  olá  ")
-    resposta = ChatResponse(resposta="Olá")
+def test_remove_espacos_da_mensagem_do_chat():
+    requisicao = ChatRequest(mensagem="  olá  ")
 
-    assert requisicao.token == "token"
     assert requisicao.mensagem == "olá"
-    assert resposta.agentes_chamados == []
+
+
+def test_rejeita_mensagem_vazia_no_chat():
+    with pytest.raises(ValidationError):
+        ChatRequest(mensagem="   ")
+
+
+def test_remove_formatacao_simples_da_resposta():
+    resposta = ChatResponse(resposta="**Leitura:** 4.00 °C\n\n")
+
+    assert resposta.resposta == "Leitura: 4.00 °C"
+
+
+def test_rejeita_periodo_de_relatorio_invertido():
+    with pytest.raises(ValidationError):
+        RelatorioRequest(
+            cd_id=2, data_inicial="2026-10-20", data_final="2026-10-10"
+        )

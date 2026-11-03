@@ -1,21 +1,50 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+import re
+from datetime import date, datetime
+from typing import Literal
 
-from datetime import datetime
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+class DecisaoRota(BaseModel):
+    """Saída interna do roteador; não representa uma autorização de acesso."""
+
+    model_config = ConfigDict(extra="forbid")
+    rota: Literal["monitoramento", "diagnostico", "faq", "orquestrador"]
+
+
+class RelatorioRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    cd_id: int | None = Field(default=None, gt=0, strict=True)
+    camara_id: int | None = Field(default=None, gt=0, strict=True)
+    data_inicial: date
+    data_final: date
+
+    @field_validator("data_inicial", "data_final", mode="before")
+    @classmethod
+    def data_iso(cls, valor):
+        if type(valor) is date or (isinstance(valor, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", valor)):
+            return valor
+        raise ValueError("Informe uma data no formato YYYY-MM-DD.")
+
+    @model_validator(mode="after")
+    def periodo_valido(self):
+        if self.data_inicial > self.data_final or self.data_final == date.max:
+            raise ValueError("Período inválido ou sem limite final representável.")
+        return self
+
 
 class ChatRequest(BaseModel):
     """Mensagem recebida pelo endpoint de chat.
 
-    O token sera validado pela autenticacao do aplicativo quando ela estiver
-    integrada. Durante o bypass temporario, ele e recebido e nao interpretado.
+    A identidade vem do JWT no cabeçalho Authorization, antes do fluxo.
     """
 
-    token: str = Field(min_length=1, max_length=10_000)
     mensagem: str = Field(min_length=1, max_length=10_000)
     model_config = ConfigDict(extra="forbid")
 
-    @field_validator("token", "mensagem")
+    @field_validator("mensagem")
     @classmethod
     def texto_obrigatorio(cls, valor: str) -> str:
         valor = valor.strip()
@@ -28,9 +57,81 @@ class ChatResponse(BaseModel):
     resposta: str
     agentes_chamados: list[str] = Field(default_factory=list)
 
+    @field_validator("resposta")
+    @classmethod
+    def texto_sem_formatacao(cls, valor: str) -> str:
+        """Apresenta texto simples sem alterar números, fontes ou ressalvas."""
+        valor = re.sub(r"(?<!\w)\*\*(\S(?:[^*\n]*[^\s*])?)\*\*(?!\w)", r"\1", valor)
+        # Marcadores junto ao texto; asteriscos separados por espaços podem ser multiplicação.
+        valor = re.sub(r"(?<!\w)\*([^\W\d_](?:[^*\n]*[^\s*])?)\*(?!\w)", r"\1", valor)
+        return " ".join(valor.split())
 
-class errorResponse(BaseModel):
-    status_code: int
-    message: str
-    now: datetime
 
+class EncerrarChatResponse(BaseModel):
+    resumo: str | None = None
+
+
+class ResumoObservabilidade(BaseModel):
+    turnos: int
+    erros: int
+    resolucoes_tecnicas: int = 0
+    indice_erros: float | None
+    latencia_media_ms: float | None
+    latencia_p95_ms: int | None
+    tokens_entrada: int
+    tokens_saida: int
+    custo_estimado_usd: float | None
+    custo_parcial_conhecido_usd: float = 0
+    estimativa_custo_completa: bool = True
+    modelos_sem_preco: list[str] = Field(default_factory=list)
+    custo_medio_por_turno_usd: float | None
+
+
+class LatenciaInteragente(BaseModel):
+    agente: str
+    latencia_media_ms: float | None
+    chamadas: int
+
+
+class ProjecaoSemanal(BaseModel):
+    usuarios_semanais: int
+    interacoes_por_usuario: int
+    premissa: str
+    custo_estimado_usd: float | None
+    motivo: str = ""
+
+
+class MetricaFinanceira(BaseModel):
+    valor_usd: float | None = None
+    valor_percentual: float | None = None
+    motivo: str
+    beneficio_estimado_usd: float | None = None
+
+
+class PremissasObservabilidade(BaseModel):
+    tipo: str
+    tempo_manual_evitado_minutos: float | None
+    custo_hora_usd: float | None
+    interacoes_por_usuario_semana: int = 1
+    turnos_na_amostra: int
+
+
+class TurnoRecente(BaseModel):
+    data_hora: datetime
+    rota: str
+    status: str
+    latencia_total_ms: int
+    tokens_entrada: int
+    tokens_saida: int
+    custo_usd: float | None
+
+
+class ObservabilidadeResponse(BaseModel):
+    escopo: str
+    resumo: ResumoObservabilidade
+    latencia_interagentes: list[LatenciaInteragente]
+    projecoes_semanais: list[ProjecaoSemanal]
+    custo_por_resolucao: MetricaFinanceira
+    roi: MetricaFinanceira
+    premissas: PremissasObservabilidade | None = None
+    turnos_recentes: list[TurnoRecente]
