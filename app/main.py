@@ -47,7 +47,7 @@ async def acesso_negado(request: Request, erro: PermissionError):
 async def servico_indisponivel(request: Request, erro: Exception):
     if isinstance(erro, BadRequestError):
         logger.error("Rejeição Groq: HTTP=400 codigo=%s", codigo_erro_groq(erro))
-        return JSONResponse(status_code=502, content={"detail": "O provedor de IA não conseguiu processar a chamada do agente. Tente novamente; se persistir, consulte o log do servidor."})
+        return JSONResponse(status_code=502, content={"detail": "O provedor de IA não conseguiu processar a chamada do agente. Tente novamente; se persistir, consulte o log do servidor.", "error": erro.message})
     logger.error("Serviço indisponível: %s", type(erro).__name__)
     mensagem = "Não foi possível concluir a solicitação porque um serviço necessário está indisponível. Aguarde e tente novamente; se persistir, confira as conexões e as cotas dos provedores no servidor."
     if isinstance(erro, OperationalError):
@@ -58,7 +58,7 @@ async def servico_indisponivel(request: Request, erro: Exception):
         mensagem = "Não foi possível acessar o Redis para consultar as leituras. Confira se o serviço está em execução e tente novamente."
     elif isinstance(erro, (UnexpectedResponse, ResponseHandlingException)):
         mensagem = "Não foi possível acessar o Qdrant para recuperar a base ou a memória. Confira a conexão e as coleções configuradas."
-    return JSONResponse(status_code=503, content={"detail": mensagem})
+    return JSONResponse(status_code=503, content={"detail": mensagem, "error": erro.message})
 
 
 async def saida_modelo_invalida(request: Request, erro: SaidaModeloInvalida):
