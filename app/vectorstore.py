@@ -25,7 +25,7 @@ def modelo_embeddings():
     if not GEMINI_API_KEY:
         raise ServicoIndisponivel("GEMINI_API_KEY não configurada.")
     return GoogleGenerativeAIEmbeddings(
-        model="gemini-embedding-2-preview", google_api_key=GEMINI_API_KEY,
+        model="models/text-embedding-004", google_api_key=GEMINI_API_KEY,
     )
 
 
